@@ -686,7 +686,7 @@ function StepCampus({ data, onChange, onSubmit, onBack, isLoading, error }) {
 	useEffect(() => {
 		async function fetchSchools() {
 			try {
-				const res = await fetch('/api/admin/school');
+				const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/school`);
 				const json = await res.json();
 				const rawSchools = Array.isArray(json) ? json : json.data || [];
 				
