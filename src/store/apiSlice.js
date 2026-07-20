@@ -179,7 +179,7 @@ export const apiSlice = createApi({
       queryFn: async (id) => {
         if (!id) return { data: null };
         try {
-          const response = await fetch(`/api/admin/school/${id}`, {
+          const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/school/${id}`, {
             credentials: 'include',
           });
           if (!response.ok) {
