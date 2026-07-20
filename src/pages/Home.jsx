@@ -28,9 +28,9 @@ export function Home() {
   const { data: notificationsRes } = useGetNotificationsQuery();
   console.log(propertiesRes)
 
-  const rawProducts = Array.isArray(productsRes) ? await productsRes : (productsRes?.data || []);
-  const rawProperties = Array.isArray(propertiesRes) ? await propertiesRes : (propertiesRes?.data || []);
-  const rawServices = Array.isArray(servicesRes) ? await servicesRes : (servicesRes?.data || []);
+  const rawProducts = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
+  const rawProperties = Array.isArray(propertiesRes) ? propertiesRes : (propertiesRes?.data || []);
+  const rawServices = Array.isArray(servicesRes) ? servicesRes : (servicesRes?.data || []);
   const rawNotifications = Array.isArray(notificationsRes) ? notificationsRes : (notificationsRes?.data || []);
 
   const unreadNotifications = rawNotifications.filter(n => !n.isRead).length;
