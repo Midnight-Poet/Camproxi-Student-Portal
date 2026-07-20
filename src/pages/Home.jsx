@@ -44,7 +44,7 @@ export function Home() {
   ];
 
   // If the backend has no items yet, fallback to ALL_ITEMS for display purposes so the UI isn't empty during dev
-  const displayItems = combinedItems.length > 0 ? combinedItems : ALL_ITEMS;
+  const displayItems = combinedItems
 
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
   const hour = new Date().getHours();
