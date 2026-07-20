@@ -698,7 +698,8 @@ function StepCampus({ data, onChange, onSubmit, onBack, isLoading, error }) {
 								id: `${s.id}-${c.name}`,
 								schoolId: s.id,
 								displayName: `${s.code} ${c.name}`,
-								location: c.location
+								location: c.location,
+								campusName: c.name
 							});
 						}
 					}
@@ -750,6 +751,7 @@ function StepCampus({ data, onChange, onSubmit, onBack, isLoading, error }) {
 				if (closest) {
 					onChange('school', closest.displayName);
 					onChange('schoolId', closest.schoolId);
+					onChange('campusName', closest.campusName);
 				} else {
 					setGeoError(
 						'No campus found near your location. Please select manually.',
@@ -776,6 +778,7 @@ function StepCampus({ data, onChange, onSubmit, onBack, isLoading, error }) {
 		if (s) {
 			onChange('school', s.displayName);
 			onChange('schoolId', s.schoolId);
+			onChange('campusName', s.campusName);
 		}
 	}
 
@@ -917,6 +920,7 @@ function StepCampus({ data, onChange, onSubmit, onBack, isLoading, error }) {
 												onClick={() => {
 													onChange('school', s.displayName);
 													onChange('schoolId', s.schoolId);
+													onChange('campusName', s.campusName);
 													setDropdownOpen(false);
 												}}
 												className={`w-full text-left px-3 py-3 mb-0.5 rounded-lg text-sm transition-all cursor-pointer border-none flex items-center justify-between ${
@@ -997,6 +1001,7 @@ export function Onboarding() {
 		confirmPassword: '', // UI only — not sent to API
 		school: '',
 		schoolId: '',
+		campusName: '',
 		// Optional by API
 		phone: '',
 		latitude: null,
@@ -1019,6 +1024,7 @@ export function Onboarding() {
 				password: formData.password,
 				school: formData.school,
 				schoolId: formData.schoolId,
+				campusName: formData.campusName,
 			};
 
 			// phone: API expects a number
