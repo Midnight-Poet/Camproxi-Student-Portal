@@ -26,6 +26,7 @@ export function Home() {
   const { data: propertiesRes, isLoading: isLoadingProperties } = useGetPropertiesQuery();
   const { data: servicesRes, isLoading: isLoadingServices } = useGetServicesQuery();
   const { data: notificationsRes } = useGetNotificationsQuery();
+  console.log(propertiesRes)
 
   const rawProducts = Array.isArray(productsRes) ? await productsRes : (productsRes?.data || []);
   const rawProperties = Array.isArray(propertiesRes) ? await propertiesRes : (propertiesRes?.data || []);
