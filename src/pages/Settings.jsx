@@ -772,9 +772,17 @@ export function Settings() {
   async function handleLogout() {
     try {
       await logoutApi().unwrap();
-      dispatch({ type: 'LOGOUT' });
     } catch (e) {
       console.error('Logout failed', e);
+    } finally {
+      dispatch({ type: 'LOGOUT' });
+      localStorage.clear();
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      window.location.href = '/login';
     }
   }
 

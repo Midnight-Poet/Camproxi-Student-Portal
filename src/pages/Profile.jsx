@@ -58,9 +58,18 @@ export function Profile() {
   async function handleLogout() {
     try {
       await logoutApi().unwrap();
-      dispatch({ type: 'LOGOUT' }); // Clear legacy context
     } catch (e) {
       console.error('Logout failed', e);
+    } finally {
+      dispatch({ type: 'LOGOUT' }); // Clear legacy context
+      localStorage.clear();
+      // Clear all cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      window.location.href = '/login';
     }
   }
 
