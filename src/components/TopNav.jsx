@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context.jsx';
 import { Icon } from './Icon.jsx';
-import { useGetMeQuery, useGetSchoolByIdQuery, useGetNotificationsQuery, useMarkNotificationReadMutation } from '../store/apiSlice';
+import { useGetMeQuery, useGetSchoolByIdQuery, useGetNotificationsQuery, useMarkNotificationReadMutation, useGetChatsQuery } from '../store/apiSlice';
 
 const getIconForType = (type) => {
   switch (type) {
@@ -78,14 +78,34 @@ export function TopNav() {
         await markRead(notif.id || notif._id).unwrap();
       } catch (err) {}
     }
-    if (notif.itemId) {
-      navigate(`/listing/${notif.itemId}`);
-    } else if (notif.type === 'message') {
+    if (notif.category === 'NEW_MESSAGE') {
       navigate('/messages');
+    } else if (notif.category === 'REQUEST_CREATED' || notif.category === 'REQUEST_UPDATED' || notif.type === 'request_update') {
+      navigate('/activity');
+    } else if ((notif.category === 'REVIEW_CREATED' || notif.type === 'review') && notif.itemId) {
+      navigate(`/listing/${notif.itemId}`);
+    } else if (notif.type === 'promo' || notif.type === 'match') {
+      navigate('/explore');
+    } else if (notif.type === 'alert' || notif.type === 'system') {
+      navigate('/profile');
+    } else if (notif.itemId) {
+      navigate(`/listing/${notif.itemId}`);
     }
   };
 
-  const totalUnread = state.conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
+  const { data: chatsRes } = useGetChatsQuery(undefined, {
+    // Optionally poll for real-time badge updates if desired, though socket might be better
+  });
+  const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
+  
+  const totalUnread = chats.reduce((sum, chat) => {
+    let unread = chat.unreadCount;
+    if (unread === undefined) {
+      unread = (chat.messages || []).filter(m => m.senderType === 'AGENT' && !m.isRead).length;
+    }
+    return sum + (unread || 0);
+  }, 0);
+
   const initial = (user?.firstName || 'U').charAt(0).toUpperCase();
 
   return (

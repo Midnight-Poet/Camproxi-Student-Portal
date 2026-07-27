@@ -5,17 +5,18 @@ import { useGetMeQuery } from './store/apiSlice';
 import { AppProvider } from './context.jsx';
 
 import { AppLayout } from './components/AppLayout.jsx';
-import { Onboarding } from './pages/Onboarding.jsx';
+import { Onboarding } from './pages/Onboarding';
 import { Login } from './pages/Login.jsx';
 import { Home } from './pages/Home.jsx';
 import { Explore } from './pages/Explore.jsx';
 import { Detail } from './pages/Detail.jsx';
 import { Saved } from './pages/Saved.jsx';
 import { Activity } from './pages/Activity.jsx';
-import { Messages } from './pages/Messages.jsx';
+import { Messages } from './pages/Messages';
 import { Profile } from './pages/Profile.jsx';
-import { Settings } from './pages/Settings.jsx';
+import { Settings } from './pages/Settings';
 import { Notifications } from './pages/Notifications.jsx';
+import { AgentProfile } from './pages/AgentProfile.jsx';
 
 function AuthGuard({ children }) {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -40,7 +41,6 @@ function RootRedirect() {
 
 export default function App() {
   const { data,isLoading } = useGetMeQuery();
-  console.log(data)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-cx-bg flex flex-col items-center justify-center">
@@ -81,6 +81,7 @@ export default function App() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/listing/:id" element={<Detail />} />
+          <Route path="/agent/:id" element={<AgentProfile />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

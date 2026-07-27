@@ -38,7 +38,7 @@ export const INITIAL_ACTIVITY = [
 
 export const CATEGORIES = [
   { name:'Lodge', icon:'home_work', color:'#12b5a6', bg:'#e2f7f3', count: 48 },
-  { name:'Vendor', icon:'restaurant', color:'#7c6cf0', bg:'#ecebfe', count: 32 },
+  { name:'Vendor', icon:'storefront', color:'#7c6cf0', bg:'#ecebfe', count: 32 },
   { name:'Service', icon:'handyman', color:'#6f86f2', bg:'#eaeffe', count: 25 },
 ];
 
@@ -47,7 +47,7 @@ export function fmt(n) { return '₦' + Number(n).toLocaleString('en-NG'); }
 export function catIcon(cat) {
   const map = {
     'Lodge': 'home_work', 'Lodges': 'home_work',
-    'Vendor': 'restaurant', 'Vendors': 'restaurant', 'Food & Drinks': 'restaurant',
+    'Vendor': 'storefront', 'Vendors': 'storefront', 'Food & Drinks': 'restaurant',
     'Service': 'handyman', 'Services': 'handyman',
   };
   return map[cat] || 'storefront';

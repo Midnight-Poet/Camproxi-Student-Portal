@@ -6,7 +6,6 @@ import { Icon } from '../components/Icon.jsx';
 const MENU_ITEMS = [
   { icon: 'edit', label: 'Edit profile', route: '/settings?v=editProfile', color: '#14b8a6', bg: '#e2f7f3' },
   { icon: 'settings', label: 'Settings', route: '/settings', color: '#7c6cf0', bg: '#ecebfe' },
-  { icon: 'payments', label: 'Payment methods', route: '/settings?v=payment', color: '#f59e0b', bg: '#fef3c7' },
   { icon: 'verified_user', label: 'Verification', route: '/settings?v=verification', color: '#3b82f6', bg: '#dbeafe' },
   { icon: 'help_outline', label: 'Help & support', route: '/settings?v=help', color: '#ec4899', bg: '#fce7f3' },
 ];

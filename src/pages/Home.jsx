@@ -26,7 +26,6 @@ export function Home() {
   const { data: propertiesRes, isLoading: isLoadingProperties } = useGetPropertiesQuery();
   const { data: servicesRes, isLoading: isLoadingServices } = useGetServicesQuery();
   const { data: notificationsRes } = useGetNotificationsQuery();
-  console.log(propertiesRes)
 
   const rawProducts = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
   const rawProperties = Array.isArray(propertiesRes) ? propertiesRes : (propertiesRes?.data || []);
@@ -50,7 +49,7 @@ export function Home() {
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.firstName || 'User';
+  const username = user?.username || 'User';
 
   function handleCategory(cat) {
     dispatch({ type: 'SET_CAT_FILTER', value: cat });
@@ -61,7 +60,7 @@ export function Home() {
   const nearbyItems = displayItems.slice(0, 6);
 
   return (
-    <div className="animate-fadeIn px-5">
+    <div className="animate-fadeIn md:px-5 px-2">
       {/* Header (Mostly for mobile, as desktop has TopNav) */}
       <div className="flex items-start justify-between mb-6 md:hidden">
         <div>
@@ -69,8 +68,8 @@ export function Home() {
           {isLoadingUser ? (
             <div className="h-8 bg-cx-bg rounded-lg w-32 animate-pulse" />
           ) : (
-            <h1 className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cx-ink to-cx-ink3">
-              {firstName} 👋
+            <h1 className="text-2xl capitalize font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cx-ink to-cx-ink3">
+              {username}
             </h1>
           )}
         </div>
@@ -108,8 +107,8 @@ export function Home() {
           {isLoadingUser ? (
             <div className="h-10 bg-cx-bg rounded-lg w-48 animate-pulse" />
           ) : (
-            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cx-ink to-cx-ink3">
-              Welcome back, {firstName}
+            <h1 className="text-4xl capitalize font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cx-ink to-cx-ink3">
+              Welcome back, {username}
             </h1>
           )}
         </div>
@@ -142,25 +141,32 @@ export function Home() {
       {/* Categories */}
       <section className="mb-10">
         <div className="grid grid-cols-3 gap-3 md:gap-5">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat.name}
-              onClick={() => handleCategory(cat.name)}
-              className="group flex flex-col items-center rounded-3xl p-4 border border-transparent cursor-pointer gap-2 bg-white shadow-sm hover:shadow-lg hover:border-cx-teal/30 transition-all hover:-translate-y-1 md:py-6"
-            >
-              <div
-                className="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110"
-                style={{ background: cat.bg }}
+          {CATEGORIES.map(cat => {
+            let dynamicCount = cat.count;
+            if (cat.name === 'Lodge') dynamicCount = rawProperties.length || 0;
+            if (cat.name === 'Vendor') dynamicCount = rawProducts.length || 0;
+            if (cat.name === 'Service') dynamicCount = rawServices.length || 0;
+
+            return (
+              <button
+                key={cat.name}
+                onClick={() => handleCategory(cat.name)}
+                className="group flex flex-col items-center rounded-3xl p-4 border border-transparent cursor-pointer gap-2 bg-white shadow-sm hover:shadow-lg hover:border-cx-teal/30 transition-all hover:-translate-y-1 md:py-6"
               >
-                <Icon name={cat.icon} size={24} fill={1} style={{ color: cat.color }} />
-              </div>
-              <div className="text-center mt-1">
-                <p className="text-cx-ink text-sm font-bold leading-tight hidden md:block group-hover:text-cx-teal transition-colors">{cat.name}</p>
-                <p className="text-cx-ink text-xs font-bold leading-tight md:hidden group-hover:text-cx-teal transition-colors">{cat.name.split(' ')[0]}</p>
-                <p className="text-cx-muted text-xs hidden md:block mt-0.5">{cat.count} listings</p>
-              </div>
-            </button>
-          ))}
+                <div
+                  className="w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110"
+                  style={{ background: cat.bg }}
+                >
+                  <Icon name={cat.icon} size={24} fill={1} style={{ color: cat.color }} />
+                </div>
+                <div className="text-center mt-1">
+                  <p className="text-cx-ink text-sm font-bold leading-tight hidden md:block group-hover:text-cx-teal transition-colors">{cat.name}</p>
+                  <p className="text-cx-ink text-xs font-bold leading-tight md:hidden group-hover:text-cx-teal transition-colors">{cat.name.split(' ')[0]}</p>
+                  <p className="text-cx-muted text-xs hidden md:block mt-0.5">{dynamicCount} listings</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -214,7 +220,7 @@ export function Home() {
           </button>
         </div>
         {isLoadingItems ? (
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide md:grid md:grid-cols-4 md:gap-6 md:overflow-visible">
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide md:grid md:grid-cols-3 md:gap-6 md:overflow-visible">
              {[1, 2, 3, 4].map(i => (
               <div key={i} className="min-w-[220px] md:min-w-0 bg-white border border-cx-border rounded-3xl p-4 animate-pulse shadow-sm">
                 <div className="h-32 bg-cx-bg rounded-2xl mb-4"></div>
@@ -228,7 +234,7 @@ export function Home() {
             {/* Mobile: horizontal scroll */}
             <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory md:hidden">
               {nearbyItems.map(item => (
-                <div key={item.id} className="snap-start min-w-[240px]">
+                <div key={item.id} className="snap-start min-w-[250px]">
                   <ListingCard item={item} variant="scroll" />
                 </div>
               ))}

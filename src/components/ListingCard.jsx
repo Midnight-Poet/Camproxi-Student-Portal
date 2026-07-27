@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPrice } from '../data.js';
 import { PlaceholderImg } from './PlaceholderImg.jsx';
 import { Badge } from './Badge.jsx';
 import { Icon } from './Icon.jsx';
-import { useGetSavedItemsQuery, useSaveItemMutation, useRemoveSavedItemMutation } from '../store/apiSlice';
+import { useGetSavedItemsQuery, useSaveItemMutation, useRemoveSavedItemMutation, useGetSchoolsQuery } from '../store/apiSlice';
 import { useApp } from '../context.jsx';
+import { getDistanceToCampus } from '../utils/geo';
 
 // Maps item kind to API's itemCategory enum
 const ITEM_CATEGORY_MAP = { lodge: 'PROPERTY', product: 'PRODUCT', service: 'SERVICE', business: 'PRODUCT' };
@@ -17,9 +19,32 @@ export function ListingCard({ item, variant = 'featured' }) {
   // Real saved state from API
   const { data: savedItemsRes } = useGetSavedItemsQuery();
   const rawSaved = Array.isArray(savedItemsRes) ? savedItemsRes : (savedItemsRes?.data || []);
-  // FIX #7: use itemId field (not item)
   const savedRecord = rawSaved.find(s => s.itemId === item.id);
   const isSaved = !!savedRecord;
+
+  // Real distance to campus
+  const { data: schoolsRes } = useGetSchoolsQuery();
+  const schools = Array.isArray(schoolsRes) ? schoolsRes : (schoolsRes?.data || []);
+  const dist = getDistanceToCampus(item, schools);
+
+  const [imgError, setImgError] = useState(false);
+  const coverImage = item.images?.find(i => i.isCover) || item.images?.[0];
+  const coverUrl = coverImage?.url;
+
+  const renderImage = (height) => {
+    if (coverUrl && !imgError) {
+      return (
+        <img 
+          src={coverUrl} 
+          alt={item.name} 
+          className="w-full object-cover bg-cx-bg" 
+          style={{ height }} 
+          onError={() => setImgError(true)} 
+        />
+      );
+    }
+    return <PlaceholderImg label={item.label} className="w-full object-cover" style={{ height }} />;
+  };
 
   const [saveItem, { isLoading: isSaving }] = useSaveItemMutation();
   const [removeItem, { isLoading: isRemoving }] = useRemoveSavedItemMutation();
@@ -59,7 +84,7 @@ export function ListingCard({ item, variant = 'featured' }) {
       >
         <div className="relative overflow-hidden">
           <div className="transition-transform duration-500 group-hover:scale-105">
-            <PlaceholderImg label={item.label} className="w-full object-cover" style={{ height: 190 }} />
+            {renderImage(190)}
           </div>
           <div className="absolute top-3 left-3 z-10">
             <Badge text={item.badge} />
@@ -94,7 +119,7 @@ export function ListingCard({ item, variant = 'featured' }) {
             )}
             <div className="flex items-center gap-1.5 text-cx-muted">
               <Icon name="location_on" size={16} />
-              <span className="text-sm font-medium">{item.dist}</span>
+              <span className="text-sm font-medium">{dist}</span>
             </div>
           </div>
         </div>
@@ -110,7 +135,7 @@ export function ListingCard({ item, variant = 'featured' }) {
       >
         <div className="relative overflow-hidden">
           <div className="transition-transform duration-500 group-hover:scale-105">
-            <PlaceholderImg label={item.label} className="w-full object-cover" style={{ height: 150 }} />
+            {renderImage(150)}
           </div>
           <div className="absolute top-2.5 left-2.5 z-10">
             <Badge text={item.badge} small />
@@ -125,7 +150,7 @@ export function ListingCard({ item, variant = 'featured' }) {
         </div>
         <div className="p-3.5">
           <p className="font-extrabold text-cx-ink text-sm truncate">{item.name}</p>
-          <p className="text-xs font-medium text-cx-muted mt-1 truncate">{item.type} · {item.dist}</p>
+          <p className="text-xs font-medium text-cx-muted mt-1 truncate">{item.type} · {dist}</p>
           <div className="flex items-center justify-between mt-3">
             {item.totalReviews > 0 ? (
               <div className="flex items-center gap-1 bg-cx-bg px-2 py-1 rounded-lg">
@@ -146,12 +171,12 @@ export function ListingCard({ item, variant = 'featured' }) {
     return (
       <div
         onClick={handleClick}
-        className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-cx-border/50 cursor-pointer hover:shadow-md transition-all active:scale-95 flex-none"
+        className="group bg-white rounded-2xl overflow-hidden min-w-full shadow-sm border border-cx-border/50 cursor-pointer hover:shadow-md transition-all active:scale-95 flex-none"
         style={{ width: 170 }}
       >
         <div className="relative overflow-hidden">
           <div className="transition-transform duration-500 group-hover:scale-105">
-            <PlaceholderImg label={item.label} className="w-full object-cover" style={{ height: 120 }} />
+            {renderImage(120)}
           </div>
           <button
             onClick={handleSave}

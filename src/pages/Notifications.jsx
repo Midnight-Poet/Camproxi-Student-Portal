@@ -45,12 +45,18 @@ export function Notifications() {
         // ignore silently on navigation
       }
     }
-    // Depending on notification type, we could navigate differently
-    // For now, if there's an itemId, go there, otherwise maybe just stay
-    if (notif.itemId) {
-      navigate(`/listing/${notif.itemId}`);
-    } else if (notif.type === 'message') {
+    if (notif.type === 'message') {
       navigate('/messages');
+    } else if (notif.category === 'REQUEST_CREATED' || notif.category === 'REQUEST_UPDATED' || notif.type === 'request_update') {
+      navigate('/activity');
+    } else if ((notif.category === 'REVIEW_CREATED' || notif.type === 'review') && notif.itemId) {
+      navigate(`/listing/${notif.itemId}`);
+    } else if (notif.type === 'promo' || notif.type === 'match') {
+      navigate('/explore');
+    } else if (notif.type === 'alert' || notif.type === 'system') {
+      navigate('/profile');
+    } else if (notif.itemId) {
+      navigate(`/listing/${notif.itemId}`);
     }
   };
 
