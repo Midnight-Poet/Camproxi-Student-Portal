@@ -190,8 +190,7 @@ export function Detail() {
 		useAddRatingMutation();
 	const [createRequest, { isLoading: isRequesting }] =
 		useCreateRequestMutation();
-	const [initiateChat, { isLoading: isInitiatingChat }] =
-		useInitiateChatMutation();
+
 	const { data: chatsRes } = useGetChatsQuery();
 	const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
 	const isMutating = isSaving || isRemoving;
@@ -377,6 +376,7 @@ export function Detail() {
 			if (existingChat) {
 				navigate(`/messages?chatId=${existingChat._id || existingChat.id}`);
 			} else {
+				console.log(`/messages?newChat=true&agentId=${item.agentId}&itemId=${item.id}&category=${ITEM_CATEGORY_MAP[item.kind] || 'PRODUCT'}&name=${encodeURIComponent(providerName)}`)
 				navigate(`/messages?newChat=true&agentId=${item.agentId}&itemId=${item.id}&category=${ITEM_CATEGORY_MAP[item.kind] || 'PRODUCT'}&name=${encodeURIComponent(providerName)}`);
 			}
 		} catch (err) {
@@ -1430,11 +1430,11 @@ export function Detail() {
 							</button>
 							<button
 								onClick={handleMessage}
-								disabled={isInitiatingChat}
+
 								className='w-full py-3.5 rounded-xl font-bold text-sm border border-cx-border bg-white text-cx-ink3 cursor-pointer flex items-center justify-center gap-2 hover:bg-cx-bg transition-colors'
 							>
 								<Icon name='chat_bubble' size={16} />
-								{isInitiatingChat ? 'Loading...' : 'Message'}
+								{ 'Message'}
 							</button>
 							<div className='border-t border-cx-border mt-4 pt-4 space-y-3'>
 								<div className='flex items-center justify-between text-sm'>

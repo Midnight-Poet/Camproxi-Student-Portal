@@ -15,7 +15,7 @@ export function Messages() {
   const { data: userResponse } = useGetMeQuery();
   const user = userResponse?.data || userResponse;
 
-  const [chatOpen, setChatOpen] = useState(!!activeChatIdParam);
+  const [chatOpen, setChatOpen] = useState(!!activeChatIdParam || searchParams.get('newChat') === 'true');
   const [chatInput, setChatInput] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -40,11 +40,12 @@ export function Messages() {
   const newItemId = searchParams.get('itemId');
   const newItemCategory = searchParams.get('category');
   const newAgentName = searchParams.get('name');
+  const newAgentAvatar = searchParams.get('avatar');
 
   const activeChatId = activeChatIdParam || null;
   const activeConv = activeChatId ? chats.find(c => (c.id || c._id) === activeChatId) : isNewChat ? {
     id: 'new',
-    agent: { firstName: newAgentName, lastName: '' },
+    agent: { firstName: newAgentName, lastName: '', profileImage: { url: newAgentAvatar } },
     isNew: true,
   } : null;
 
@@ -108,11 +109,11 @@ export function Messages() {
 
     if (activeConv?.isNew) {
       try {
-        const res = await initiateChat({
-          agentId: newAgentId,
-          itemId: newItemId,
-          itemCategory: newItemCategory
-        }).unwrap();
+        const payload = { agentId: newAgentId };
+        if (newItemId && newItemId !== 'null' && newItemId !== 'undefined') payload.itemId = newItemId;
+        if (newItemCategory && newItemCategory !== 'null' && newItemCategory !== 'undefined') payload.itemCategory = newItemCategory;
+
+        const res = await initiateChat(payload).unwrap();
         const newChatId = res.id || res._id;
         
         // Save the message to be sent once connected
@@ -190,7 +191,7 @@ export function Messages() {
           chatOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         }`}
       >
-        {activeChatId ? (
+        {activeConv ? (
           <>
             {/* Chat Header */}
             <div className="flex items-center gap-4 px-4 md:px-6 py-4 border-b border-slate-100 bg-white flex-none shadow-sm z-30 relative">

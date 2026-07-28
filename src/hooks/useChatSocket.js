@@ -9,7 +9,12 @@ export function useChatSocket(chatId) {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId) {
+      setIsConnected(false);
+      return;
+    }
+
+    setIsConnected(false);
 
     // Determine WS URL from backend URL
     const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
