@@ -3,7 +3,7 @@ import {useNavigate} from 'react-router'
 import { useDispatch } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
-import { useGetChatsQuery, useGetChatMessagesQuery, useGetMeQuery, useMarkChatReadMutation, useInitiateChatMutation } from '../../store/apiSlice';
+import { useGetChatsQuery, useGetChatMessagesQuery, useGetMeQuery, useMarkChatReadMutation, useInitiateChatMutation, apiSlice } from '../../store/apiSlice';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { ConversationList } from './components/ConversationList';
 import { ChatThread } from './components/ChatThread';
