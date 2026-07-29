@@ -21,6 +21,8 @@ const initialState = {
   prefs: { campus:'Crystal Campus', currency:'₦ Naira', distance:'Kilometres', language:'English' },
   profileForm: { name:'Amara Okonkwo', username:'amara_o', bio:'200L · Computer Science. Looking for a quiet self-con near campus.', email:'amara@unilag.edu.ng', phone:'+234 803 555 0142' },
   catFilter: 'Lodge',
+  campusFilter: 'All',
+  distanceFilter: 'Any distance',
   exploreMode: 'list',
   isSideNavOpen: false,
   conversations: INITIAL_CONVERSATIONS,
@@ -58,9 +60,13 @@ function reducer(state, action) {
     case 'SET_PREF':
       return { ...state, prefs: { ...state.prefs, [action.key]: action.value } };
     case 'SET_PROFILE_FIELD':
-      return { ...state, profileForm: { ...state.profileForm, [action.key]: action.value } };
+      return { ...state, profileForm: { ...state.profileForm, [action.field]: action.value } };
     case 'SET_CAT_FILTER':
       return { ...state, catFilter: action.value };
+    case 'SET_CAMPUS_FILTER':
+      return { ...state, campusFilter: action.value };
+    case 'SET_DISTANCE_FILTER':
+      return { ...state, distanceFilter: action.value };
     case 'SET_EXPLORE_MODE':
       return { ...state, exploreMode: action.value };
     case 'TOGGLE_SIDENAV':
