@@ -141,10 +141,20 @@ export function Profile() {
                       <span className="text-xs font-semibold text-cx-muted">{user.phone}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-sm" style={{ background: '#e2f7f3', borderColor: '#ccf0eb' }}>
-                    <Icon name="verified_user" size={14} fill={1} style={{ color: '#14b8a6' }} />
-                    <span className="text-xs font-bold text-teal-600" style={{ color: '#0d9488' }}>Verified Student</span>
-                  </div>
+                  {user?.isverified || (user?.emailVerified && user?.phoneVerified) ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-sm" style={{ background: '#e2f7f3', borderColor: '#ccf0eb' }}>
+                      <Icon name="verified_user" size={14} fill={1} style={{ color: '#14b8a6' }} />
+                      <span className="text-xs font-bold text-teal-600" style={{ color: '#0d9488' }}>Verified Student</span>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => navigate('/settings?v=verification')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-sm border-amber-200 bg-amber-50 cursor-pointer hover:bg-amber-100 transition-colors"
+                    >
+                      <Icon name="warning" size={14} fill={1} style={{ color: '#d97706' }} />
+                      <span className="text-xs font-bold text-amber-700">Verification Pending</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>

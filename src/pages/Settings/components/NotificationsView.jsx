@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Icon } from '../../../components/Icon.jsx';
-import { SectionCard, RowItem, SaveButton } from './SharedUI.jsx';
+import { SectionCard, RowItem, SaveButton, Divider } from './SharedUI.jsx';
+import { useApp } from '../../../context.jsx';
+import { Toggle } from '../../../components/Toggle.jsx';
 
 export function NotificationsView({ user, onUpdateNotifications }) {
   const [masterOn, setMasterOn] = useState(user?.notificationsEnabled ?? true);

@@ -109,6 +109,11 @@ export function StepPersonalDetails({ data, onChange, onNext, onBack }) {
 			: data.confirmPassword !== data.password
 				? 'Passwords do not match'
 				: '',
+		phone: !data.phone
+			? 'Phone number is required'
+			: !/^\+?[0-9]{10,15}$/.test(data.phone.replace(/[\s-]/g, ''))
+				? 'Enter a valid phone number'
+				: '',
 	};
 
 	const isCheckingAvailability =
@@ -122,6 +127,7 @@ export function StepPersonalDetails({ data, onChange, onNext, onBack }) {
 			lastName: true,
 			username: true,
 			email: true,
+			phone: true,
 			password: true,
 			confirmPassword: true,
 		});
@@ -286,16 +292,21 @@ export function StepPersonalDetails({ data, onChange, onNext, onBack }) {
 					)}
 				</div>
 
-				{/* Phone (optional) */}
-				{/* <Field label='Phone number (optional)'>
-					<Input
-						type='tel'
-						value={data.phone}
-						onChange={(e) => onChange('phone', e.target.value)}
-						placeholder='+234 800 000 0000'
-						autoComplete='tel'
-					/>
-				</Field> */}
+				{/* Phone */}
+				<div>
+					<Field label='Phone number' error={touched.phone && errors.phone}>
+						<Input
+							type='tel'
+							value={data.phone}
+							onChange={(e) => {
+								onChange('phone', e.target.value);
+								setTouched((t) => ({ ...t, phone: true }));
+							}}
+							placeholder='+234 800 000 0000'
+							autoComplete='tel'
+						/>
+					</Field>
+				</div>
 
 				{/* Password */}
 				<div>

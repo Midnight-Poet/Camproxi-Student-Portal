@@ -28,6 +28,34 @@ export const userApi = apiSlice.injectEndpoints({
     getAgentById: builder.query({
       query: (id) => `/users/agent/${id}`,
     }),
+    sendEmailVerification: builder.mutation({
+      query: () => ({
+        url: '/profile/send-verification',
+        method: 'POST',
+      }),
+    }),
+    verifyEmail: builder.mutation({
+      query: (payload) => ({
+        url: '/profile/verify-email',
+        method: 'POST',
+        body: payload, // { otp: string }
+      }),
+      invalidatesTags: ['User'],
+    }),
+    sendPhoneVerification: builder.mutation({
+      query: () => ({
+        url: '/profile/send-phone-verification',
+        method: 'POST',
+      }),
+    }),
+    verifyPhone: builder.mutation({
+      query: (payload) => ({
+        url: '/profile/verify-phone',
+        method: 'POST',
+        body: payload, // { otp: string }
+      }),
+      invalidatesTags: ['User'],
+    }),
   }),
   overrideExisting: false,
 });
@@ -39,4 +67,8 @@ export const {
   useUpdateNotificationsMutation,
   useGetUserByIdQuery,
   useGetAgentByIdQuery,
+  useSendEmailVerificationMutation,
+  useVerifyEmailMutation,
+  useSendPhoneVerificationMutation,
+  useVerifyPhoneMutation,
 } = userApi;

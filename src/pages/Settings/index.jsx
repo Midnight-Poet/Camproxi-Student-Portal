@@ -14,8 +14,6 @@ const DESKTOP_SECTIONS = [
   { key: 'editProfile', label: 'Edit profile', icon: 'edit', color: '#14b8a6', bg: '#e2f7f3' },
   { key: 'notifications', label: 'Notifications', icon: 'notifications', color: '#f97316', bg: '#ffedd5' },
   { key: 'privacy', label: 'Privacy & security', icon: 'lock', color: '#8b5cf6', bg: '#ede9fe' },
-  { key: 'preferences', label: 'Preferences', icon: 'tune', color: '#ec4899', bg: '#fce7f3' },
-  { key: 'payment', label: 'Payment methods', icon: 'payments', color: '#f59e0b', bg: '#fef3c7' },
   { key: 'verification', label: 'Verification', icon: 'verified_user', color: '#3b82f6', bg: '#dbeafe' },
   { key: 'help', label: 'Help & support', icon: 'help_outline', color: '#0ea5e9', bg: '#e0f2fe' },
   { key: 'about', label: 'About', icon: 'info', color: '#64748b', bg: '#f1f5f9' },
@@ -29,6 +27,8 @@ import { EditProfileView } from './components/EditProfileView.jsx';
 import { NotificationsView } from './components/NotificationsView.jsx';
 import { PrivacyView } from './components/PrivacyView.jsx';
 import { VerificationView } from './components/VerificationView.jsx';
+import { HelpView } from './components/HelpView.jsx';
+import { AboutView } from './components/AboutView.jsx';
 export function Settings() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -112,22 +112,10 @@ export function Settings() {
         return <PrivacyView />;
       case 'verification':
         return <VerificationView user={user} school={school} />;
-      case 'payment':
-        return <PaymentView />;
       case 'help':
         return <HelpView />;
       case 'about':
         return <AboutView />;
-      case 'preferences':
-        return <PreferencesView prefs={prefs} onPref={handlePref} school={school} isLoadingSchool={isLoadingSchool} />;
-      case 'select-campus':
-        return <SelectPage title="Campus region" options={CAMPUS_OPTIONS} selected={prefs.campus} onSelect={val => handlePref('campus', val)} onBack={goBack} />;
-      case 'select-currency':
-        return <SelectPage title="Currency" options={CURRENCY_OPTIONS} selected={prefs.currency} onSelect={val => handlePref('currency', val)} onBack={goBack} />;
-      case 'select-distance':
-        return <SelectPage title="Distance" options={DISTANCE_OPTIONS} selected={prefs.distance} onSelect={val => handlePref('distance', val)} onBack={goBack} />;
-      case 'select-language':
-        return <SelectPage title="Language" options={LANGUAGE_OPTIONS} selected={prefs.language} onSelect={val => handlePref('language', val)} onBack={goBack} />;
       default:
         return null;
     }
@@ -157,26 +145,6 @@ export function Settings() {
               <RowItem icon="verified_user" label="Verification" color="#3b82f6" bg="#dbeafe"
                 sub={user?.emailVerified ? 'Email verified ✓' : 'Email not verified'}
                 onClick={() => goTo('verification')} />
-              <Divider />
-              <RowItem icon="payments" label="Payment methods" color="#f59e0b" bg="#fef3c7" onClick={() => goTo('payment')} />
-            </SectionCard>
-
-            {/* Preferences */}
-            <p className="text-xs font-bold text-cx-ink3 uppercase tracking-wide px-2 mb-2">Preferences</p>
-            <SectionCard>
-              <RowItem
-                icon="school"
-                label="Campus region"
-                sub={isLoadingSchool ? 'Loading…' : (school?.name || school?.schoolName || prefs.campus)}
-                color="#0d9488" bg="#e2f7f3"
-                right={<Icon name="lock" size={18} style={{ color: '#94a3b8' }} />}
-              />
-              <Divider />
-              <RowItem icon="currency_exchange" label="Currency" sub={prefs.currency} color="#10b981" bg="#d1fae5" onClick={() => goTo('select-currency')} />
-              <Divider />
-              <RowItem icon="straighten" label="Distance" sub={prefs.distance} color="#8b5cf6" bg="#ede9fe" onClick={() => goTo('select-distance')} />
-              <Divider />
-              <RowItem icon="language" label="Language" sub={prefs.language} color="#f97316" bg="#ffedd5" onClick={() => goTo('select-language')} />
             </SectionCard>
 
             {/* Notifications */}

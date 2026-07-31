@@ -27,6 +27,23 @@
 ### `PATCH /api/student/profile/update`
 **Body (`UpdateProfileDto`):** All fields are optional. Extends `CreateUserDto` but **omits** `password`, `school`, and `location`.
 
+### `POST /api/student/profile/send-verification`
+Sends a 6-digit OTP to the student's email.
+
+### `POST /api/student/profile/verify-email`
+**Body:** `{ "otp": "string" }`
+Verifies the email. 
+
+### `POST /api/student/profile/send-phone-verification`
+Sends a 6-digit OTP to the student's phone via SMS (Termii).
+
+### `POST /api/student/profile/verify-phone`
+**Body:** `{ "otp": "string" }`
+Verifies the phone number.
+
+> [!NOTE]  
+> The student's `isverified` flag will only be set to `true` when BOTH `emailVerified` and `phoneVerified` are strictly true.
+
 ---
 
 ## 3. Users Directory

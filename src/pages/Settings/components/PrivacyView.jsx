@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Icon } from '../../../components/Icon.jsx';
-import { SectionCard, InputField, SaveButton } from './SharedUI.jsx';
+import { SectionCard, InputField, SaveButton, Divider } from './SharedUI.jsx';
 import { useApp } from '../../../context.jsx';
+import { Toggle } from '../../../components/Toggle.jsx';
 
 export function PrivacyView({ onSave }) {
   const [passwords, setPasswords] = useState({ current: '', newPass: '', confirm: '' });
