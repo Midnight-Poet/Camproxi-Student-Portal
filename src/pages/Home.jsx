@@ -10,29 +10,26 @@ import {
   useGetProductsQuery,
   useGetPropertiesQuery,
   useGetServicesQuery,
-  useGetNotificationsQuery
+  useGetChatsQuery
 } from '../store/apiSlice';
 
 
 export function Home() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
-  const { conversations } = state;
-  
   const { data: userResponse, isLoading: isLoadingUser } = useGetMeQuery();
   const user = userResponse?.data || userResponse;
   
   const { data: productsRes, isLoading: isLoadingProducts } = useGetProductsQuery();
   const { data: propertiesRes, isLoading: isLoadingProperties } = useGetPropertiesQuery();
   const { data: servicesRes, isLoading: isLoadingServices } = useGetServicesQuery();
-  const { data: notificationsRes } = useGetNotificationsQuery();
 
   const rawProducts = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
   const rawProperties = Array.isArray(propertiesRes) ? propertiesRes : (propertiesRes?.data || []);
   const rawServices = Array.isArray(servicesRes) ? servicesRes : (servicesRes?.data || []);
-  const rawNotifications = Array.isArray(notificationsRes) ? notificationsRes : (notificationsRes?.data || []);
+  // const rawNotifications = Array.isArray(notificationsRes) ? notificationsRes : (notificationsRes?.data || []);
 
-  const unreadNotifications = rawNotifications.filter(n => !n.isRead).length;
+  // const unreadNotifications = rawNotifications.filter(n => !n.isRead).length;
 
   const isLoadingItems = isLoadingProducts || isLoadingProperties || isLoadingServices;
 
@@ -46,7 +43,16 @@ export function Home() {
   // If the backend has no items yet, fallback to ALL_ITEMS for display purposes so the UI isn't empty during dev
   const displayItems = combinedItems
 
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
+  const { data: chatsRes } = useGetChatsQuery();
+  const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
+  const totalUnread = chats.reduce((sum, chat) => {
+    let unread = chat.unreadCount;
+    if (unread === undefined) {
+      unread = (chat.messages || []).filter(m => m.senderType === 'AGENT' && !m.isRead).length;
+    }
+    return sum + (unread || 0);
+  }, 0);
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const username = user?.username || 'User';
@@ -88,7 +94,7 @@ export function Home() {
               </span>
             )}
           </button>
-          <button 
+          {/* <button 
             className="relative w-10 h-10 rounded-full flex items-center justify-center bg-white border border-cx-border/50 shadow-sm cursor-pointer transition-all hover:bg-cx-bg hover:shadow"
             onClick={() => navigate('/notifications')}
           >
@@ -96,7 +102,7 @@ export function Home() {
             {unreadNotifications > 0 && (
               <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-cx-teal border-2 border-white"></span>
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 

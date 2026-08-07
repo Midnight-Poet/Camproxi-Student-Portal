@@ -12,11 +12,12 @@ import { Explore } from './pages/Explore.jsx';
 import { Detail } from './pages/Detail.jsx';
 import { Saved } from './pages/Saved.jsx';
 import { Activity } from './pages/Activity.jsx';
-import { Messages } from './pages/Messages';
 import { Profile } from './pages/Profile.jsx';
+import { NotFound } from './pages/NotFound.jsx';
 import { Settings } from './pages/Settings';
 import { Notifications } from './pages/Notifications.jsx';
 import { AgentProfile } from './pages/AgentProfile.jsx';
+import { Messages } from './pages/Messages/index.jsx';
 
 function AuthGuard({ children }) {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -78,14 +79,14 @@ export default function App() {
           <Route path="/explore" element={<Explore />} />
           <Route path="/saved" element={<Saved />} />
           <Route path="/activity" element={<Activity />} />
-          <Route path="/notifications" element={<Notifications />} />
           <Route path="/messages" element={<Messages />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/listing/:id" element={<Detail />} />
           <Route path="/agent/:id" element={<AgentProfile />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AppProvider>
   );

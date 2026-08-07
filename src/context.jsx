@@ -1,15 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import { INITIAL_CONVERSATIONS, INITIAL_ACTIVITY } from './data.js';
+import { INITIAL_ACTIVITY } from './data.js';
 
 const AppContext = createContext(null);
-
-const AUTO_REPLIES = [
-  "Thanks for reaching out! We'll get back to you shortly.",
-  "Got it! Give us a moment to process your request.",
-  "Thank you! We appreciate your interest.",
-  "Sure, we'll look into that and respond soon.",
-  "Received! We'll confirm the details shortly.",
-];
 
 const initialState = {
   isAuthenticated: false,
@@ -17,7 +9,7 @@ const initialState = {
   email: '',
   code: '',
   saved: { l1:true, f1:true, s2:true },
-  settings: { newListings:true, priceDrops:true, interestUpdates:true, messages:true, promos:false, locationServices:true, showActivity:true },
+  settings: { newListings:true, priceDrops:true, interestUpdates:true, promos:false, locationServices:true, showActivity:true },
   prefs: { campus:'Crystal Campus', currency:'₦ Naira', distance:'Kilometres', language:'English' },
   profileForm: { name:'Amara Okonkwo', username:'amara_o', bio:'200L · Computer Science. Looking for a quiet self-con near campus.', email:'amara@unilag.edu.ng', phone:'+234 803 555 0142' },
   catFilter: 'Lodge',
@@ -25,10 +17,7 @@ const initialState = {
   distanceFilter: 'Any distance',
   exploreMode: 'list',
   isSideNavOpen: false,
-  conversations: INITIAL_CONVERSATIONS,
-  activeChatId: 'c1',
   activity: INITIAL_ACTIVITY,
-  chatInput: '',
   toast: null,
 };
 
@@ -45,7 +34,7 @@ function reducer(state, action) {
     case 'COMPLETE_ONB':
       return { ...state, isAuthenticated: true, onbStep: 0 };
     case 'LOGOUT':
-      return { ...initialState, conversations: INITIAL_CONVERSATIONS, activity: INITIAL_ACTIVITY };
+      return { ...initialState, activity: INITIAL_ACTIVITY };
     case 'TOGGLE_SAVED': {
       const saved = { ...state.saved };
       if (saved[action.id]) {
@@ -71,66 +60,7 @@ function reducer(state, action) {
       return { ...state, exploreMode: action.value };
     case 'TOGGLE_SIDENAV':
       return { ...state, isSideNavOpen: !state.isSideNavOpen };
-    case 'OPEN_CHAT':
-      return {
-        ...state,
-        activeChatId: action.id,
-        conversations: state.conversations.map(c =>
-          c.id === action.id ? { ...c, unread: 0 } : c
-        ),
-      };
-    case 'OPEN_CHAT_WITH': {
-      const existing = state.conversations.find(c => c.name === action.name && c.listing === action.listing);
-      if (existing) {
-        return {
-          ...state,
-          activeChatId: existing.id,
-          conversations: state.conversations.map(c =>
-            c.id === existing.id ? { ...c, unread: 0 } : c
-          ),
-        };
-      }
-      const newId = 'c' + Date.now();
-      const newConv = {
-        id: newId,
-        name: action.name,
-        listing: action.listing,
-        kind: action.kind || 'business',
-        time: new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }),
-        unread: 0,
-        msgs: [
-          { from:'them', t:`Hello! Thanks for your interest in ${action.listing}.`, time: new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }) },
-        ],
-      };
-      return {
-        ...state,
-        activeChatId: newId,
-        conversations: [newConv, ...state.conversations],
-      };
-    }
-    case 'SEND_MESSAGE': {
-      const now = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
-      return {
-        ...state,
-        conversations: state.conversations.map(c =>
-          c.id === action.chatId
-            ? { ...c, msgs: [...c.msgs, { from:'me', t: action.text, time: now }], time: now }
-            : c
-        ),
-        chatInput: '',
-      };
-    }
-    case 'RECEIVE_MESSAGE': {
-      const now = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
-      return {
-        ...state,
-        conversations: state.conversations.map(c =>
-          c.id === action.chatId
-            ? { ...c, msgs: [...c.msgs, { from:'them', t: action.text, time: now }], time: now }
-            : c
-        ),
-      };
-    }
+
     case 'ADD_ACTIVITY': {
       const newActivity = {
         id: 'a' + Date.now(),
@@ -141,10 +71,17 @@ function reducer(state, action) {
       };
       return { ...state, activity: [newActivity, ...state.activity] };
     }
-    case 'SET_CHAT_INPUT':
-      return { ...state, chatInput: action.value };
+
     case 'SHOW_TOAST':
-      return { ...state, toast: { message: action.message, position: action.position || 'bottom' } };
+      return { 
+        ...state, 
+        toast: { 
+          message: action.message, 
+          position: action.position || 'bottom',
+          type: action.toastType || 'default',
+          title: action.title || null
+        } 
+      };
     case 'CLEAR_TOAST':
       return { ...state, toast: null };
     default:
@@ -156,21 +93,18 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const showToast = useCallback((message, options = {}) => {
-    dispatch({ type: 'SHOW_TOAST', message, position: options.position });
-    setTimeout(() => dispatch({ type: 'CLEAR_TOAST' }), 2200);
-  }, []);
-
-  const sendChat = useCallback((chatId, text) => {
-    if (!text.trim()) return;
-    dispatch({ type: 'SEND_MESSAGE', chatId, text });
-    const reply = AUTO_REPLIES[Math.floor(Math.random() * AUTO_REPLIES.length)];
-    setTimeout(() => {
-      dispatch({ type: 'RECEIVE_MESSAGE', chatId, text: reply });
-    }, 1100);
+    dispatch({ 
+      type: 'SHOW_TOAST', 
+      message, 
+      position: options.position,
+      toastType: options.type,
+      title: options.title
+    });
+    setTimeout(() => dispatch({ type: 'CLEAR_TOAST' }), 3500);
   }, []);
 
   return (
-    <AppContext.Provider value={{ state, dispatch, showToast, sendChat }}>
+    <AppContext.Provider value={{ state, dispatch, showToast }}>
       {children}
     </AppContext.Provider>
   );

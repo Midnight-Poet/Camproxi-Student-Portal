@@ -5,8 +5,7 @@ import {
   useGetProductsQuery,
   useGetPropertiesQuery,
   useGetServicesQuery,
-  useGetSchoolByIdQuery,
-  useGetChatsQuery
+  useGetSchoolByIdQuery
 } from '../store/apiSlice';
 import { Icon } from '../components/Icon';
 import { ListingCard } from '../components/ListingCard';
@@ -22,21 +21,6 @@ export function AgentProfile() {
 
   const schoolName = agent?.school?.campus?.[0]?.name || agent?.school?.code || agent?.school?.name || agent?.campus || agent?.campusName;
 
-  const { data: chatsRes } = useGetChatsQuery();
-  const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
-
-  const handleMessage = () => {
-    if (!agent) return;
-    // Check if a chat already exists with this agent
-    const existingChat = chats.find(c => c.agent?._id === id || c.agent?.id === id);
-    if (existingChat) {
-      navigate(`/messages?chatId=${existingChat._id || existingChat.id}`);
-    } else {
-      const agentName = `${agent.firstName} ${agent.lastName}`;
-      const agentAvatar = agent.profileImage?.url || agent.avatar;
-      navigate(`/messages?newChat=true&agentId=${id}&name=${encodeURIComponent(agentName)}&avatar=${encodeURIComponent(agentAvatar || '')}`);
-    }
-  };
 
   // Fetch all items to filter for this agent
   const { data: productsRes, isLoading: isLoadingProducts } = useGetProductsQuery();
@@ -141,15 +125,6 @@ export function AgentProfile() {
             </div>
           </div>
 
-          <div className="flex gap-3 md:flex-col md:w-48 pt-2 md:pt-0">
-             <button 
-                onClick={handleMessage}
-                className="flex-1 md:w-full bg-cx-teal text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-teal-600 transition-colors shadow-sm cursor-pointer border-none"
-              >
-                <Icon name="chat" size={20} />
-                Message
-              </button>
-          </div>
         </div>
 
         {/* Bio */}

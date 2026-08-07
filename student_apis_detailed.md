@@ -196,6 +196,24 @@ When fetching an item, expect it to include its base fields along with `images` 
 - `PATCH /api/student/notifications/:id/read` – Mark single notification as read.
 - `PATCH /api/student/notifications/read-all` – Mark all notifications as read.
 
+### WebSockets Connection for Notifications
+- **URL**: `ws://<backend-url>/notifications`
+- **Authentication**: Automatically authenticated via the `access_token` cookie sent during the HTTP handshake. No token needs to be passed manually.
+
+#### Events Emitted from Client (Frontend -> Backend)
+- `markAsRead`: Send this event to mark a specific notification as read.
+  - **Payload:** `{ "notificationId": "string" }`
+- `markAllAsRead`: Send this event to mark all notifications as read.
+  - **Payload:** None (or `{}`)
+
+#### Events Received by Client (Backend -> Frontend)
+- `newNotification`: Triggered when the backend creates a new notification for you.
+  - **Payload:** The saved `Notification` object.
+- `notificationRead`: Acknowledgment that a notification was marked as read.
+  - **Payload:** `{ "notificationId": "string" }`
+- `allNotificationsRead`: Acknowledgment that all notifications were marked as read.
+  - **Payload:** `{ "success": true }`
+
 ---
 
 ## 8. Requests
@@ -309,11 +327,15 @@ Students can send requests for properties, products, or services. Triggers an aw
   - **Payload:** `{ "chatId": "string" }`
 - `sendMessage`: Send a new message to the room.
   - **Payload:** `{ "chatId": "string", "senderId": "string", "senderType": "STUDENT", "content": "string" }`
-- `markAsRead`: Send this event when the user opens the chat UI to automatically mark unread messages as read.
+- `markAsRead`: Send this event to mark all messages in a chat as read.
   - **Payload:** `{ "chatId": "string" }`
+- `deleteMessage`: Send this event to delete a specific message (you must be the sender).
+  - **Payload:** `{ "messageId": "string", "chatId": "string" }`
 
 #### Events Received by Client (Backend -> Frontend)
-- `newMessage`: Triggered when a new message is saved to the DB.
+- `newMessage`: Triggered when a new message is sent to the chat room.
   - **Payload:** The saved `Message` object.
-- `messagesRead`: Triggered when the other user (agent) reads your messages. Use this to update your UI (e.g. gray ticks to blue ticks).
-  - **Payload:** `{ "chatId": "string", "readBy": "AGENT", "readerId": "string" }`
+- `messagesRead`: Acknowledgment that messages were read by the other party.
+  - **Payload:** `{ "chatId": "string", "readBy": "STUDENT" | "AGENT", "readerId": "string" }`
+- `messageDeleted`: Triggered when a message is successfully deleted.
+  - **Payload:** `{ "messageId": "string", "chatId": "string" }`

@@ -2,26 +2,24 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context.jsx';
 import { Icon } from '../components/Icon.jsx';
-import { 
-  useGetNotificationsQuery, 
-  useMarkNotificationReadMutation, 
-  useMarkAllNotificationsReadMutation 
-} from '../store/apiSlice';
+import { useGetNotificationsQuery } from '../store/apiSlice';
+import { useNotificationSocket } from '../hooks/useNotificationSocket.js';
 
 export function Notifications() {
   const navigate = useNavigate();
   const { showToast } = useApp();
   
-  const { data: notificationsRes, isLoading, refetch } = useGetNotificationsQuery();
+  const { data: notificationsRes, isLoading } = useGetNotificationsQuery();
   const notifications = Array.isArray(notificationsRes) ? notificationsRes : (notificationsRes?.data || []);
   
-  const [markRead, { isLoading: isMarkingRead }] = useMarkNotificationReadMutation();
-  const [markAllRead, { isLoading: isMarkingAllRead }] = useMarkAllNotificationsReadMutation();
+  const { markAsRead, markAllAsRead } = useNotificationSocket();
+  const isMarkingRead = false;
+  const isMarkingAllRead = false;
 
   const handleMarkAsRead = async (id, e) => {
     e.stopPropagation();
     try {
-      await markRead(id).unwrap();
+      markAsRead(id);
     } catch (err) {
       console.error('Failed to mark as read', err);
     }
@@ -29,7 +27,7 @@ export function Notifications() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await markAllRead().unwrap();
+      markAllAsRead();
       showToast('All notifications marked as read');
     } catch (err) {
       console.error('Failed to mark all as read', err);
@@ -40,12 +38,12 @@ export function Notifications() {
   const handleNotificationClick = async (notif) => {
     if (!notif.isRead) {
       try {
-        await markRead(notif.id || notif._id).unwrap();
+        markAsRead(notif.id || notif._id);
       } catch (err) {
         // ignore silently on navigation
       }
     }
-    if (notif.type === 'message') {
+    if (notif.category === 'NEW_MESSAGE' || notif.type === 'message') {
       navigate('/messages');
     } else if (notif.category === 'REQUEST_CREATED' || notif.category === 'REQUEST_UPDATED' || notif.type === 'request_update') {
       navigate('/activity');
@@ -60,13 +58,26 @@ export function Notifications() {
     }
   };
 
-  const getIconForType = (type) => {
-    switch (type) {
-      case 'message': return { name: 'chat_bubble', color: '#7c6cf0', bg: '#f0effd' };
-      case 'order': return { name: 'shopping_bag', color: '#14b8a6', bg: '#e2f7f3' };
-      case 'alert': return { name: 'warning', color: '#f59e0b', bg: '#fef3c7' };
-      default: return { name: 'notifications', color: '#5b6270', bg: '#f4f5f7' };
+  const getIconForNotification = (notif) => {
+    const type = (notif?.type || '').toLowerCase();
+    const category = (notif?.category || '').toUpperCase();
+
+    if (category === 'NEW_MESSAGE' || type === 'message') {
+      return { name: 'chat_bubble', color: '#7c6cf0', bg: '#f0effd' };
     }
+    if (category === 'REQUEST_CREATED' || category === 'REQUEST_UPDATED' || type === 'request_update') {
+      return { name: 'receipt_long', color: '#14b8a6', bg: '#e2f7f3' };
+    }
+    if (category === 'REVIEW_CREATED' || type === 'review') {
+      return { name: 'star', color: '#f59e0b', bg: '#fffbeb' };
+    }
+    if (type === 'promo' || type === 'match') {
+      return { name: 'local_offer', color: '#ec4899', bg: '#fdf2f8' };
+    }
+    if (type === 'alert' || type === 'system') {
+      return { name: 'warning', color: '#ef4444', bg: '#fee2e2' };
+    }
+    return { name: 'notifications', color: '#5b6270', bg: '#f4f5f7' };
   };
 
   const formatTime = (dateStr) => {
@@ -150,7 +161,7 @@ export function Notifications() {
           )}
           
           {notifications.map(notif => {
-            const { name: iconName, color, bg } = getIconForType(notif.type);
+            const { name: iconName, color, bg } = getIconForNotification(notif);
             const isUnread = !notif.isRead;
             
             return (

@@ -19,9 +19,7 @@ import {
 	useAddReviewMutation,
 	useAddRatingMutation,
 	useCreateRequestMutation,
-	useInitiateChatMutation,
 	useGetSchoolsQuery,
-	useGetChatsQuery,
 	useGetSchoolByIdQuery,
 } from '../store/apiSlice';
 import { getDistanceToCampus } from '../utils/geo';
@@ -191,8 +189,6 @@ export function Detail() {
 	const [createRequest, { isLoading: isRequesting }] =
 		useCreateRequestMutation();
 
-	const { data: chatsRes } = useGetChatsQuery();
-	const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
 	const isMutating = isSaving || isRemoving;
 
 	const [reviewRating, setReviewRating] = useState(0);
@@ -284,6 +280,12 @@ export function Detail() {
 			: item.name;
 	const providerImage = agentData?.profileImage?.url || null;
 
+	const handleMessage = () => {
+		if (agentId) {
+			navigate(`/messages?newChat=true&agentId=${agentId}&name=${encodeURIComponent(agentFullName || 'Agent')}&avatar=${encodeURIComponent(providerImage || '')}`);
+		}
+	};
+
 	async function handleSave() {
 		if (isMutating) return;
 		try {
@@ -369,21 +371,6 @@ export function Detail() {
 		}
 	}
 
-	async function handleMessage() {
-		try {
-			// Find if there's an existing chat
-			const existingChat = chats.find(c => c.agent?._id === item.agentId && c.itemId === item.id);
-			if (existingChat) {
-				navigate(`/messages?chatId=${existingChat._id || existingChat.id}`);
-			} else {
-				console.log(`/messages?newChat=true&agentId=${item.agentId}&itemId=${item.id}&category=${ITEM_CATEGORY_MAP[item.kind] || 'PRODUCT'}&name=${encodeURIComponent(providerName)}`)
-				navigate(`/messages?newChat=true&agentId=${item.agentId}&itemId=${item.id}&category=${ITEM_CATEGORY_MAP[item.kind] || 'PRODUCT'}&name=${encodeURIComponent(providerName)}`);
-			}
-		} catch (err) {
-			console.error('Failed to navigate to chat', err);
-			showToast('Failed to start chat');
-		}
-	}
 
 	const ctaLabel = item.kind === 'lodge' ? 'Show Interest' : 'Order Now';
 
@@ -690,14 +677,6 @@ export function Detail() {
 								</p>
 							)}
 						</div>
-						<button
-							onClick={handleMessage}
-							className='flex items-center gap-1.5 px-3 py-2 rounded-xl border border-cx-teal-b text-cx-teal text-xs font-semibold cursor-pointer'
-							style={{ background: '#e2f7f3' }}
-						>
-							<Icon name='chat_bubble' size={14} />
-							Message
-						</button>
 					</div>
 
 					{/* Reviews Section (Mobile) */}
@@ -1140,15 +1119,7 @@ export function Detail() {
 									</p>
 								)}
 							</div>
-							<button
-								// onClick={handleMessage}
-								className='flex items-center gap-2 px-4 py-2.5 rounded-xl border border-cx-teal-b text-cx-teal font-semibold text-sm cursor-pointer hover:bg-cx-teal hover:text-white transition-colors'
-								style={{ background: '#e2f7f3' }}
-							>
-								{/* <Icon name='chat_bubble' size={16} /> */}
-								View
-							</button>
-						</div>
+					</div>
 
 						{/* Reviews Section (Desktop) */}
 						<div className='mt-8'>

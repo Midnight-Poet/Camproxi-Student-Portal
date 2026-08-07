@@ -14,15 +14,7 @@ export function Activity() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
 
-  function handleContact(item) {
-    dispatch({
-      type: 'OPEN_CHAT_WITH',
-      name: item.name,
-      listing: item.name,
-      kind: getKind(item.type),
-    });
-    navigate('/messages');
-  }
+
 
   const { data: requestsRes, isLoading } = useGetRequestsQuery();
   const rawRequests = Array.isArray(requestsRes) ? requestsRes : (requestsRes?.data || []);
@@ -123,13 +115,20 @@ export function Activity() {
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => handleContact({ name: itemName, type: uiType })}
-                      className="w-full py-2 rounded-xl text-xs font-bold cursor-pointer border border-cx-border bg-white text-cx-ink3 hover:bg-cx-bg transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Icon name="chat_bubble" size={13} style={{ color: '#5b6270' }} />
-                      Contact
-                    </button>
+                    {req.agent && (
+                      <div className="mt-2 pt-3 border-t border-cx-border/60">
+                        <button
+                          onClick={() => {
+                            const agentName = `${req.agent?.firstName || 'Agent'} ${req.agent?.lastName || ''}`.trim();
+                            navigate(`/messages?newChat=true&agentId=${req.agent?._id || req.agent?.id}&name=${encodeURIComponent(agentName)}&avatar=${encodeURIComponent(req.agent?.profileImage?.url || '')}`);
+                          }}
+                          className="w-full py-2.5 rounded-lg flex items-center justify-center gap-1.5 font-bold text-[13px] transition-all bg-cx-bg text-cx-ink3 hover:bg-slate-200 border-none cursor-pointer"
+                        >
+                          <Icon name="chat" size={16} />
+                          Message Provider
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

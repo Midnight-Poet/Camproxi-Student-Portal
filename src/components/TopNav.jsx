@@ -2,15 +2,29 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context.jsx';
 import { Icon } from './Icon.jsx';
-import { useGetMeQuery, useGetSchoolByIdQuery, useGetNotificationsQuery, useMarkNotificationReadMutation, useGetChatsQuery } from '../store/apiSlice';
+import { useGetMeQuery, useGetSchoolByIdQuery, useGetChatsQuery, useGetNotificationsQuery } from '../store/apiSlice';
+import { useNotificationSocket } from '../hooks/useNotificationSocket.js';
 
-const getIconForType = (type) => {
-  switch (type) {
-    case 'message': return { name: 'chat_bubble', color: '#7c6cf0', bg: '#f0effd' };
-    case 'order': return { name: 'shopping_bag', color: '#14b8a6', bg: '#e2f7f3' };
-    case 'alert': return { name: 'warning', color: '#f59e0b', bg: '#fef3c7' };
-    default: return { name: 'notifications', color: '#5b6270', bg: '#f4f5f7' };
+const getIconForNotification = (notif) => {
+  const type = (notif?.type || '').toLowerCase();
+  const category = (notif?.category || '').toUpperCase();
+
+  if (category === 'NEW_MESSAGE' || type === 'message') {
+    return { name: 'chat_bubble', color: '#7c6cf0', bg: '#f0effd' };
   }
+  if (category === 'REQUEST_CREATED' || category === 'REQUEST_UPDATED' || type === 'request_update') {
+    return { name: 'receipt_long', color: '#14b8a6', bg: '#e2f7f3' };
+  }
+  if (category === 'REVIEW_CREATED' || type === 'review') {
+    return { name: 'star', color: '#f59e0b', bg: '#fffbeb' };
+  }
+  if (type === 'promo' || type === 'match') {
+    return { name: 'local_offer', color: '#ec4899', bg: '#fdf2f8' };
+  }
+  if (type === 'alert' || type === 'system') {
+    return { name: 'warning', color: '#ef4444', bg: '#fee2e2' };
+  }
+  return { name: 'notifications', color: '#5b6270', bg: '#f4f5f7' };
 };
 
 const formatTime = (dateStr) => {
@@ -51,13 +65,14 @@ export function TopNav() {
   );
   const school = schoolRes?.data || schoolRes;
   const schoolName = school ? `${school.code} ${school.campus?.[0]?.name || ''}`.trim() : null;
+
   // Notifications
   const { data: notifRes } = useGetNotificationsQuery();
   const rawNotifications = Array.isArray(notifRes) ? notifRes : (notifRes?.data || []);
   const unreadCount = rawNotifications.filter(n => !n.isRead).length;
   const latestNotifications = rawNotifications.slice(0, 4);
 
-  const [markRead] = useMarkNotificationReadMutation();
+  const { markAsRead } = useNotificationSocket();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -74,11 +89,9 @@ export function TopNav() {
   const handleNotificationClick = async (notif) => {
     setIsNotifOpen(false);
     if (!notif.isRead) {
-      try {
-        await markRead(notif.id || notif._id).unwrap();
-      } catch (err) {}
+      markAsRead(notif.id || notif._id);
     }
-    if (notif.category === 'NEW_MESSAGE') {
+    if (notif.category === 'NEW_MESSAGE' || notif.type === 'message') {
       navigate('/messages');
     } else if (notif.category === 'REQUEST_CREATED' || notif.category === 'REQUEST_UPDATED' || notif.type === 'request_update') {
       navigate('/activity');
@@ -93,9 +106,8 @@ export function TopNav() {
     }
   };
 
-  const { data: chatsRes } = useGetChatsQuery(undefined, {
-    // Optionally poll for real-time badge updates if desired, though socket might be better
-  });
+  // Unread Messages Count
+  const { data: chatsRes } = useGetChatsQuery();
   const chats = Array.isArray(chatsRes) ? chatsRes : (chatsRes?.data || []);
   
   const totalUnread = chats.reduce((sum, chat) => {
@@ -225,26 +237,6 @@ export function TopNav() {
           {/* Thin divider */}
           <div className="hidden xl:block h-5 w-px mx-1" style={{ background: 'rgba(0,0,0,0.08)' }} />
 
-          {/* Messages */}
-          <button
-            onClick={() => navigate('/messages')}
-            className="relative w-10 h-10 rounded-2xl flex items-center justify-center cursor-pointer border-none transition-all duration-200 group"
-            style={{ background: 'transparent' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(241,243,245,0.9)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            title="Messages"
-          >
-            <Icon name="chat_bubble" size={20} style={{ color: '#5b6270' }} />
-            {totalUnread > 0 && (
-              <span
-                className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-extrabold flex items-center justify-center border-2 border-white/90 px-0.5"
-                style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}
-              >
-                {totalUnread}
-              </span>
-            )}
-          </button>
-
           {/* Notifications */}
           <div className="relative" ref={dropdownRef}>
             <button
@@ -266,48 +258,68 @@ export function TopNav() {
 
             {/* Dropdown */}
             {isNotifOpen && (
-              <div className="absolute right-0 top-[48px] w-[340px] bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] border border-cx-border/60 overflow-hidden z-[100] animate-fadeIn">
-                <div className="px-4 py-3 border-b border-cx-border/50 flex items-center justify-between bg-cx-bg/30">
-                  <h3 className="font-extrabold text-cx-ink text-sm">Notifications</h3>
+              <div 
+                className="absolute right-0 top-[52px] w-[350px] bg-white/90 backdrop-blur-2xl rounded-3xl shadow-[0_24px_54px_rgba(0,0,0,0.16)] border border-white/60 overflow-hidden z-[100] origin-top-right transition-all duration-300"
+                style={{ animation: 'fadeInScale 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}
+              >
+                {/* Add dynamic animation stylesheet injection if not present */}
+                <style dangerouslySetInnerHTML={{__html: `
+                  @keyframes fadeInScale {
+                    from { opacity: 0; transform: scale(0.96) translateY(-10px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                  }
+                `}} />
+
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white/40">
+                  <h3 className="font-extrabold text-slate-800 text-sm tracking-tight">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="text-xs font-bold text-cx-teal">{unreadCount} new</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 bg-gradient-to-br from-[#14b8a6] to-[#0d9488] text-white rounded-full shadow-sm">
+                      {unreadCount} new
+                    </span>
                   )}
                 </div>
                 
-                <div className="max-h-[320px] overflow-y-auto">
+                <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
                   {latestNotifications.length === 0 ? (
-                    <div className="py-8 text-center px-4">
-                      <Icon name="notifications_off" size={24} style={{ color: '#9aa0ab', marginBottom: 8 }} />
-                      <p className="text-sm font-medium text-cx-ink">No notifications</p>
-                      <p className="text-xs text-cx-muted mt-1">You're all caught up!</p>
+                    <div className="py-10 text-center px-4 flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                        <Icon name="notifications_off" size={22} style={{ color: '#9aa0ab' }} />
+                      </div>
+                      <p className="text-sm font-bold text-slate-700">All caught up!</p>
+                      <p className="text-xs text-slate-400 mt-1">No new notifications received.</p>
                     </div>
                   ) : (
                     <div className="flex flex-col">
                       {latestNotifications.map((notif) => {
-                        const { name: iconName, color, bg } = getIconForType(notif.type);
+                        const { name: iconName, color, bg } = getIconForNotification(notif);
                         const isUnread = !notif.isRead;
                         return (
                           <div 
                             key={notif.id || notif._id}
                             onClick={() => handleNotificationClick(notif)}
-                            className={`p-3 border-b border-cx-border/40 cursor-pointer transition-colors flex gap-3 hover:bg-cx-bg ${isUnread ? 'bg-[#14b8a6]/[0.02]' : ''}`}
+                            className={`p-4 border-b border-slate-50/80 cursor-pointer transition-all duration-200 flex gap-3.5 hover:bg-slate-50/60 relative ${
+                              isUnread 
+                                ? 'bg-gradient-to-r from-[#14b8a6]/[0.03] to-transparent border-l-2 border-l-[#14b8a6]' 
+                                : 'bg-transparent'
+                            }`}
                           >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-none" style={{ backgroundColor: bg }}>
+                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-none shadow-inner border border-white" style={{ backgroundColor: bg }}>
                               <Icon name={iconName} size={18} style={{ color }} />
                             </div>
                             <div className="flex-1 min-w-0 pt-0.5">
-                              <p className={`text-sm truncate ${isUnread ? 'font-bold text-cx-ink' : 'font-semibold text-cx-ink3'}`}>
+                              <p className={`text-sm truncate ${isUnread ? 'font-extrabold text-slate-800' : 'font-semibold text-slate-600'}`}>
                                 {notif.title || 'Notification'}
                               </p>
-                              <p className={`text-xs truncate ${isUnread ? 'font-medium text-cx-ink4' : 'text-cx-muted'}`}>
+                              <p className={`text-[12.5px] truncate mt-0.5 ${isUnread ? 'font-bold text-slate-600' : 'text-slate-450 font-medium'}`}>
                                 {notif.message}
                               </p>
-                              <p className="text-[10px] font-bold text-cx-teal mt-1">
+                              <p className="text-[10px] font-bold text-[#14b8a6] mt-1.5 flex items-center gap-1">
+                                <Icon name="schedule" size={10} style={{ color: 'inherit' }} />
                                 {formatTime(notif.createdAt)}
                               </p>
                             </div>
                             {isUnread && (
-                              <div className="w-2 h-2 rounded-full bg-cx-teal mt-2" />
+                              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#ff5e62] to-[#ff9966] mt-2 shadow-sm animate-pulse" />
                             )}
                           </div>
                         );
@@ -316,18 +328,42 @@ export function TopNav() {
                   )}
                 </div>
 
-                <div 
-                  className="p-3 text-center border-t border-cx-border/50 bg-cx-bg/30 hover:bg-cx-bg cursor-pointer transition-colors"
-                  onClick={() => {
-                    setIsNotifOpen(false);
-                    navigate('/notifications');
-                  }}
-                >
-                  <span className="text-xs font-extrabold text-cx-teal">View all notifications</span>
+                <div className="p-3.5 border-t border-slate-100 bg-white/50">
+                  <button 
+                    className="w-full py-2.5 rounded-2xl text-xs font-extrabold text-white text-center cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 active:scale-95 shadow-md flex items-center justify-center gap-2 border-none"
+                    style={{ background: 'linear-gradient(135deg, #14b8a6, #7c6cf0)' }}
+                    onClick={() => {
+                      setIsNotifOpen(false);
+                      navigate('/notifications');
+                    }}
+                  >
+                    <span>View all notifications</span>
+                    <Icon name="arrow_forward" size={14} style={{ color: 'white' }} />
+                  </button>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Messages */}
+          <button
+            onClick={() => navigate('/messages')}
+            className="relative w-10 h-10 rounded-2xl flex items-center justify-center cursor-pointer border-none transition-all duration-200 group"
+            style={{ background: 'transparent' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(241,243,245,0.9)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            title="Messages"
+          >
+            <Icon name="chat_bubble" size={20} style={{ color: '#5b6270' }} />
+            {totalUnread > 0 && (
+              <span
+                className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-extrabold flex items-center justify-center border-2 border-white/90 px-0.5"
+                style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}
+              >
+                {totalUnread}
+              </span>
+            )}
+          </button>
 
           {/* Avatar */}
           <button

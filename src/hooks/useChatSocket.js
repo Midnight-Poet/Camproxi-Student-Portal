@@ -1,127 +1,236 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { apiSlice } from '../store/apiSlice';
+import { useEffect, useCallback, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { io } from 'socket.io-client';
+import { chatApi } from '../store/chatApi';
 
-export function useChatSocket(chatId) {
-  const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef(null);
+// Singleton socket instance for the `/chat` namespace
+let socket = null;
+let connectionCount = 0;
+
+export function useChatSocket(chatId = null) {
   const dispatch = useDispatch();
+  const chatIdRef = useRef(chatId);
 
   useEffect(() => {
-    if (!chatId) {
-      setIsConnected(false);
-      return;
-    }
+    chatIdRef.current = chatId;
+  }, [chatId]);
 
-    setIsConnected(false);
+  useEffect(() => {
+    // Only initialize socket if it doesn't exist
+    if (!socket) {
+      // Create connection. Assuming API URL is either the same origin or read from env.
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+      socket = io(`${backendUrl}/chat`, {
+        withCredentials: true,
+        transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+      });
 
-    // Determine WS URL from backend URL
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+      socket.on('connect', () => {
+        console.log('Connected to /chat namespace');
+        if (chatIdRef.current) {
+          socket.emit('joinChat', { chatId: chatIdRef.current });
+          socket.emit('markAsRead', { chatId: chatIdRef.current });
+        }
+      });
 
-    // Connect to the /chat namespace
-    const socket = io(`${backendUrl}/chat`, {
-      withCredentials: true,
-      transports: ['websocket', 'polling']
-    });
-    
-    socketRef.current = socket;
+      socket.on('disconnect', () => {
+        console.log('Disconnected from /chat namespace');
+      });
 
-    socket.on('connect', () => {
-      console.log('[ChatSocket] Connected');
-      setIsConnected(true);
-      // Join the chat room
-      socket.emit('joinChat', { chatId });
-    });
+      // Handle new messages sent by the agent
+      socket.on('newMessage', (message) => {
+        const msgId = message.id || message._id;
+        const msgChatId = message.chatId || message.chat || (message.chatId && (message.chatId.id || message.chatId._id));
+        const msgChatIdStr = String(msgChatId || '');
 
-    socket.on('newMessage', (payload) => {
-      try {
-        const message = payload.data || payload;
-        
-        // Optimistically update the RTK Query cache for getChatMessages
+        // Update specific chat messages list
+        if (msgChatIdStr) {
+          dispatch(
+            chatApi.util.updateQueryData('getChatMessages', { chatId: msgChatIdStr, limit: 50, skip: 0 }, (draft) => {
+              const msgList = Array.isArray(draft) ? draft : (draft.data || []);
+              const tempIndex = msgList.findIndex(m => {
+                const mId = m.id || m._id;
+                return mId && mId.toString().startsWith('temp-') && 
+                       m.content === message.content && 
+                       m.senderType === message.senderType;
+              });
+
+              if (tempIndex !== -1) {
+                msgList[tempIndex] = message;
+              } else {
+                const exists = msgList.some((m) => String(m.id || m._id) === String(msgId));
+                if (!exists) {
+                  msgList.unshift(message);
+                }
+              }
+            })
+          );
+        }
+
+        // Update the conversation list
         dispatch(
-          apiSlice.util.updateQueryData('getChatMessages', chatId, (draft) => {
-            // Ensure we don't duplicate messages
-            const exists = draft.some(m => m.id === message.id || m._id === message._id);
-            if (!exists) {
-              draft.push(message);
-            }
-          })
-        );
-        
-        // Also update the chat list so the sidebar shows the latest message
-        dispatch(
-          apiSlice.util.updateQueryData('getChats', undefined, (draft) => {
-            const chat = draft.find(c => (c.id || c._id) === chatId);
-            if (chat) {
-              chat.lastMessage = message;
-              chat.updatedAt = message.createdAt || new Date().toISOString();
-              // If we are not the sender, increment unread count?
-              // The user said "also set up the unread number for the conversations"
-              // If the message is from the agent, we can increment unread count
-              if (message.senderType === 'AGENT') {
+          chatApi.util.updateQueryData('getChats', undefined, (draft) => {
+            const chatList = Array.isArray(draft) ? draft : (draft.data || []);
+            const chatIndex = chatList.findIndex(c => String(c.id || c._id || '') === msgChatIdStr);
+            
+            if (chatIndex !== -1) {
+              const chat = chatList[chatIndex];
+              if (message.senderType === 'AGENT' && msgChatIdStr !== String(chatIdRef.current || '')) {
                 chat.unreadCount = (chat.unreadCount || 0) + 1;
               }
+              
+              if (!chat.messages) chat.messages = [];
+              const tempIndex = chat.messages.findIndex(m => {
+                const mId = m.id || m._id;
+                return mId && mId.toString().startsWith('temp-') && 
+                       m.content === message.content && 
+                       m.senderType === message.senderType;
+              });
+
+              if (tempIndex !== -1) {
+                chat.messages[tempIndex] = message;
+              } else {
+                chat.messages.push(message);
+              }
+              chat.lastMessage = message;
+              chat.updatedAt = message.createdAt;
+
+              // Move to top
+              chatList.splice(chatIndex, 1);
+              chatList.unshift(chat);
+            } else {
+              dispatch(chatApi.util.invalidateTags(['Chats']));
             }
           })
         );
-      } catch (err) {
-        console.error('[ChatSocket] Error parsing message:', err);
-      }
-    });
+      });
 
-    socket.on('messagesRead', (payload) => {
-      try {
-        const { chatId: readChatId } = payload;
-        
-        // Update all messages in the cache to be read
+      // Handle read receipts
+      socket.on('messagesRead', ({ chatId: readChatId, readBy }) => {
+        if (readBy === 'AGENT') {
+          // The agent read our messages
+          dispatch(
+            chatApi.util.updateQueryData('getChatMessages', { chatId: readChatId, limit: 50, skip: 0 }, (draft) => {
+              const msgList = Array.isArray(draft) ? draft : (draft.data || []);
+              msgList.forEach(m => {
+                if (m.senderType === 'STUDENT' && !m.isRead) m.isRead = true;
+              });
+            })
+          );
+        }
+      });
+      // Handle message deleted by someone else
+      socket.on('messageDeleted', ({ chatId: delChatId, messageId: delMsgId }) => {
         dispatch(
-          apiSlice.util.updateQueryData('getChatMessages', readChatId, (draft) => {
-            draft.forEach(m => {
-              // Usually we only care if OUR messages were read by the other person
-              m.isRead = true;
-            });
+          chatApi.util.updateQueryData('getChatMessages', { chatId: delChatId, limit: 50, skip: 0 }, (draft) => {
+            const msgList = Array.isArray(draft) ? draft : (draft.data || []);
+            const index = msgList.findIndex(m => m.id === delMsgId || m._id === delMsgId);
+            if (index !== -1) {
+              msgList.splice(index, 1);
+              if (!Array.isArray(draft)) draft.data = msgList;
+            }
           })
         );
-      } catch (err) {
-        console.error('[ChatSocket] Error handling messagesRead', err);
-      }
-    });
+      });
+    }
 
-    socket.on('disconnect', () => {
-      console.log('[ChatSocket] Disconnected');
-      setIsConnected(false);
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('[ChatSocket] Connection Error:', err);
-    });
+    connectionCount++;
 
     return () => {
-      if (socket) {
+      connectionCount--;
+      if (connectionCount === 0 && socket) {
         socket.disconnect();
+        socket = null;
       }
     };
-  }, [chatId, dispatch]);
+  }, [dispatch]);
 
-  const sendMessage = useCallback((content, senderId, senderType = 'STUDENT') => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('sendMessage', {
-        chatId,
-        senderId,
-        senderType,
-        content
-      });
-    } else {
-      console.warn('[ChatSocket] Socket not connected, cannot send message');
+  // Join a specific chat room
+  const joinChat = useCallback((id) => {
+    if (socket && id) {
+      socket.emit('joinChat', { chatId: id });
     }
-  }, [chatId]);
+  }, []);
 
-  const markAsRead = useCallback(() => {
-    if (socketRef.current?.connected && chatId) {
-      socketRef.current.emit('markAsRead', { chatId });
+  // Send a message
+  const sendMessage = useCallback((payload) => {
+    if (socket) {
+      socket.emit('sendMessage', payload);
+      
+      // Optimistically update our own UI
+      const optimisticMsg = {
+        id: 'temp-' + Date.now(),
+        chatId: payload.chatId,
+        senderId: payload.senderId,
+        senderType: 'STUDENT',
+        content: payload.content,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      const targetChatIdStr = String(payload.chatId || '');
+
+      dispatch(
+        chatApi.util.updateQueryData('getChatMessages', { chatId: targetChatIdStr, limit: 50, skip: 0 }, (draft) => {
+          const msgList = Array.isArray(draft) ? draft : (draft.data || []);
+          msgList.unshift(optimisticMsg);
+        })
+      );
+
+      // Also update getChats so it bumps to the top
+      dispatch(
+        chatApi.util.updateQueryData('getChats', undefined, (draft) => {
+          const chatList = Array.isArray(draft) ? draft : (draft.data || []);
+          const chatIndex = chatList.findIndex(c => String(c.id || c._id || '') === targetChatIdStr);
+          if (chatIndex !== -1) {
+            const chat = chatList[chatIndex];
+            if (!chat.messages) chat.messages = [];
+            chat.messages.push(optimisticMsg);
+            chat.lastMessage = optimisticMsg;
+            chat.updatedAt = optimisticMsg.createdAt;
+            
+            // Move to top
+            chatList.splice(chatIndex, 1);
+            chatList.unshift(chat);
+          }
+        })
+      );
     }
-  }, [chatId]);
+  }, [dispatch, chatId]);
 
-  return { isConnected, sendMessage, markAsRead };
+  // Mark chat as read via socket
+  const markAsRead = useCallback((id) => {
+    if (socket && id) {
+      socket.emit('markAsRead', { chatId: id });
+    }
+  }, []);
+
+  // Delete a message via socket
+  const deleteMessage = useCallback((payload) => {
+    if (socket) {
+      socket.emit('deleteMessage', payload);
+
+      // Optimistically update our own UI
+      dispatch(
+        chatApi.util.updateQueryData('getChatMessages', { chatId: payload.chatId, limit: 50, skip: 0 }, (draft) => {
+          const msgList = Array.isArray(draft) ? draft : (draft.data || []);
+          const index = msgList.findIndex(m => m.id === payload.messageId || m._id === payload.messageId);
+          if (index !== -1) {
+            msgList.splice(index, 1);
+            if (!Array.isArray(draft)) draft.data = msgList;
+          }
+        })
+      );
+    }
+  }, [dispatch]);
+
+  // Automatically join and mark as read if a chatId is provided
+  useEffect(() => {
+    if (chatId && socket) {
+      joinChat(chatId);
+      markAsRead(chatId);
+    }
+  }, [chatId, joinChat, markAsRead]);
+
+  return { socket, joinChat, sendMessage, markAsRead, deleteMessage };
 }

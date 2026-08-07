@@ -5,30 +5,20 @@ import { SideNav } from './SideNav.jsx';
 import { BottomNav } from './BottomNav.jsx';
 import { Toast } from './Toast.jsx';
 import { useGetNotificationsQuery } from '../store/apiSlice.js';
+import { useNotificationSocket } from '../hooks/useNotificationSocket.js';
+import { useChatSocket } from '../hooks/useChatSocket.js';
 import { useApp } from '../context.jsx';
 
 export function AppLayout() {
   const { showToast } = useApp();
   
-  // Poll notifications every 1 second
-  const { data: notifRes } = useGetNotificationsQuery(undefined, { pollingInterval: 1000 });
-  const rawNotifications = Array.isArray(notifRes) ? notifRes : (notifRes?.data || []);
-  
-  const prevLatestId = useRef(null);
+  // Initialize notification and chat sockets globally for the app session
+  useNotificationSocket();
+  useChatSocket();
 
-  useEffect(() => {
-    if (rawNotifications.length > 0) {
-      // Assuming notifications are returned sorted by newest first
-      const latest = rawNotifications[0];
-      const latestId = latest.id || latest._id;
-      
-      if (prevLatestId.current && latestId !== prevLatestId.current && !latest.isRead) {
-        showToast(latest.title ? `New: ${latest.title}` : 'New notification received!', { position: 'top' });
-      }
-      
-      prevLatestId.current = latestId;
-    }
-  }, [rawNotifications, showToast]);
+  // Fetch initial notifications once
+  useGetNotificationsQuery();
+  
   return (
     <div className="min-h-screen bg-cx-bg flex flex-col relative">
       <TopNav />
