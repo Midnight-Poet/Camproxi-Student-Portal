@@ -32,10 +32,13 @@ export function Login() {
       >
         <div>
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-extrabold text-cx-teal text-lg">
-              C
+            <div 
+              className="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-white text-[16px] tracking-tighter shadow-md"
+              style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #7c6cf0 100%)' }}
+            >
+              CX
             </div>
-            <span className="text-white font-extrabold text-xl">Camproxi</span>
+            <span className="text-white font-extrabold text-xl tracking-tight">Camproxi</span>
           </div>
           <h2 className="text-white text-3xl font-extrabold leading-tight mb-4">
             Welcome back to your campus

@@ -31,6 +31,17 @@ export const authApi = apiSlice.injectEndpoints({
     checkUsername: builder.query({
       query: (username) => `/auth/username/${encodeURIComponent(username)}`,
     }),
+    changePassword: builder.mutation({
+      query: ({ oldPassword, currentPassword, newPassword }) => ({
+        url: '/profile/change-password',
+        method: 'POST',
+        body: {
+          oldPassword: oldPassword || currentPassword,
+          newPassword,
+        },
+      }),
+      invalidatesTags: ['User'],
+    }),
   }),
   overrideExisting: false,
 });
@@ -41,4 +52,5 @@ export const {
   useLogoutMutation,
   useLazyCheckEmailQuery,
   useLazyCheckUsernameQuery,
+  useChangePasswordMutation,
 } = authApi;

@@ -30,10 +30,10 @@ export function SideNav() {
         <div className="px-6 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white text-lg shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] tracking-tighter shadow-md"
+              style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #7c6cf0 100%)' }}
             >
-              C
+              CX
             </div>
             <span className="font-extrabold text-cx-ink text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cx-ink to-cx-ink3">
               Camproxi

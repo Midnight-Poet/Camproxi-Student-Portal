@@ -13,10 +13,13 @@ export function BrandPanel({ headline, sub }) {
     >
       <div>
         <div className='flex items-center gap-3 mb-12'>
-          <div className='w-10 h-10 rounded-xl bg-white flex items-center justify-center font-extrabold text-[#14b8a6] text-lg'>
-            C
+          <div 
+            className='w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-white text-[16px] tracking-tighter shadow-md'
+            style={{ background: 'linear-gradient(135deg, #14b8a6 0%, #7c6cf0 100%)' }}
+          >
+            CX
           </div>
-          <span className='text-white font-extrabold text-xl'>
+          <span className='text-white font-extrabold text-xl tracking-tight'>
             Camproxi
           </span>
         </div>

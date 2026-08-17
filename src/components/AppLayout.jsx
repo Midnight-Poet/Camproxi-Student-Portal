@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { TopNav } from './TopNav.jsx';
 import { SideNav } from './SideNav.jsx';
 import { BottomNav } from './BottomNav.jsx';
@@ -10,7 +10,15 @@ import { useChatSocket } from '../hooks/useChatSocket.js';
 import { useApp } from '../context.jsx';
 
 export function AppLayout() {
+  const { pathname, search } = useLocation();
   const { showToast } = useApp();
+
+  // Scroll to top on every route change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [pathname, search]);
   
   // Initialize notification and chat sockets globally for the app session
   useNotificationSocket();

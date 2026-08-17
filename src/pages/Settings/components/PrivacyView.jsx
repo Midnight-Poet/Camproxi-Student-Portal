@@ -3,12 +3,15 @@ import { Icon } from '../../../components/Icon.jsx';
 import { SectionCard, InputField, SaveButton, Divider } from './SharedUI.jsx';
 import { useApp } from '../../../context.jsx';
 import { Toggle } from '../../../components/Toggle.jsx';
+import { useChangePasswordMutation } from '../../../store/apiSlice.js';
 
 export function PrivacyView({ onSave }) {
   const [passwords, setPasswords] = useState({ current: '', newPass: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const { state, dispatch, showToast } = useApp();
   const { settings } = state;
+
+  const [changePasswordApi] = useChangePasswordMutation();
 
   async function handlePasswordSave() {
     if (!passwords.current || !passwords.newPass || !passwords.confirm) {
@@ -19,15 +22,25 @@ export function PrivacyView({ onSave }) {
       showToast('New passwords do not match.');
       return;
     }
-    if (passwords.newPass.length < 8) {
-      showToast('Password must be at least 8 characters.');
+    if (passwords.newPass.length < 6) {
+      showToast('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
-    // Password change endpoint is not yet available in the API — show informational toast
-    await new Promise(r => setTimeout(r, 800));
-    showToast('Password change coming soon — contact support for now.');
-    setLoading(false);
+    try {
+      await changePasswordApi({
+        currentPassword: passwords.current,
+        oldPassword: passwords.current,
+        newPassword: passwords.newPass,
+      }).unwrap();
+      showToast('✓ Password updated successfully!', { position: 'top' });
+      setPasswords({ current: '', newPass: '', confirm: '' });
+    } catch (err) {
+      console.error('Failed to change password', err);
+      showToast(err?.data?.message || 'Failed to update password. Please check your current password.', { position: 'top' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -5,6 +5,7 @@ import { ALL_ITEMS, fmt, getPrice } from '../data.js'; // Fallback
 import { PlaceholderImg } from '../components/PlaceholderImg.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { Icon } from '../components/Icon.jsx';
+import { ReportModal } from '../components/ReportModal.jsx';
 import {
 	useGetSavedItemsQuery,
 	useSaveItemMutation,
@@ -17,10 +18,12 @@ import {
 	useGetServiceByIdQuery,
 	useGetAgentByIdQuery,
 	useAddReviewMutation,
+	useDeleteReviewMutation,
 	useAddRatingMutation,
 	useCreateRequestMutation,
 	useGetSchoolsQuery,
 	useGetSchoolByIdQuery,
+	useGetMeQuery,
 } from '../store/apiSlice';
 import { getDistanceToCampus } from '../utils/geo';
 
@@ -44,8 +47,13 @@ const AMENITY_ICONS = {
 
 function normalizeItem(item, kind, defaultCategory) {
 	const ratings = item.ratings || [];
-	const totalReviews =
-		ratings.length > 0 ? ratings.length : item.totalReviews || 0;
+	const reviews = item.reviews || [];
+	const totalReviews = Math.max(
+		item.totalReviews || 0,
+		item.ratingCount || 0,
+		ratings.length,
+		reviews.length
+	);
 	const averageRating =
 		ratings.length > 0
 			? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
@@ -188,11 +196,60 @@ export function Detail() {
 		useAddRatingMutation();
 	const [createRequest, { isLoading: isRequesting }] =
 		useCreateRequestMutation();
+	const { data: currentUserRes } = useGetMeQuery();
+	const currentUser = currentUserRes?.data || currentUserRes;
+
+	const [localAddedReviews, setLocalAddedReviews] = useState([]);
+	const [localDeletedReviewIds, setLocalDeletedReviewIds] = useState([]);
+
+	const handleDeleteReview = async (reviewId) => {
+		const targetIdStr = String(reviewId);
+		setLocalDeletedReviewIds((prev) => [...prev, targetIdStr]);
+		setLocalAddedReviews((prev) =>
+			prev.filter((r) => String(r.id || r._id) !== targetIdStr),
+		);
+
+		try {
+			await deleteReview(reviewId).unwrap();
+			showToast('Review deleted', { position: 'top' });
+			refetchProduct();
+			refetchProperty();
+			refetchService();
+		} catch {
+			showToast('Failed to delete review', { position: 'top' });
+			setLocalDeletedReviewIds((prev) =>
+				prev.filter((id) => id !== targetIdStr),
+			);
+		}
+	};
+
+	const isMyReview = (rev) => {
+		if (!rev || !currentUser) return false;
+		const myId = String(currentUser.id || currentUser._id || '');
+		if (!myId) return false;
+		const studentId = String(
+			(typeof rev.student === 'object' ? (rev.student?.id || rev.student?._id) : rev.student) ||
+			rev.studentId ||
+			rev.userId ||
+			''
+		);
+		return studentId === myId;
+	};
+
+	const reviewInputRef = useRef(null);
+
+	const handleEditReview = (rev) => {
+		setReviewComment(rev.comment);
+		showToast('Editing review — update text below');
+		reviewInputRef.current?.scrollIntoView({ behavior: 'smooth' });
+		reviewInputRef.current?.focus();
+	};
 
 	const isMutating = isSaving || isRemoving;
 
 	const [reviewRating, setReviewRating] = useState(0);
 	const [reviewComment, setReviewComment] = useState('');
+	const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 	const [selectedImageIndex, setSelectedImageIndex] = useState(null);
 	const [currentSlide, setCurrentSlide] = useState(0);
 	const scrollRef = useRef(null);
@@ -218,9 +275,30 @@ export function Detail() {
 		return () => clearInterval(interval);
 	}, [galleryImages.length]);
 
-	const reviewsWithComments =
-		item?.reviews?.filter((r) => r.comment && r.comment.trim() !== '') ||
-		[];
+	const baseReviews = item?.reviews || [];
+	const allCombinedReviews = [
+		...localAddedReviews,
+		...baseReviews,
+	].filter((r) => !localDeletedReviewIds.includes(String(r.id || r._id)));
+
+	const uniqueReviewsMap = new Map();
+	allCombinedReviews.forEach((r) => {
+		const key = String(r.id || r._id || r.comment);
+		if (!uniqueReviewsMap.has(key)) {
+			uniqueReviewsMap.set(key, r);
+		}
+	});
+
+	const reviewsWithComments = Array.from(uniqueReviewsMap.values()).filter(
+		(r) => r.comment && r.comment.trim() !== '',
+	);
+
+	const displayTotalReviews = Math.max(
+		reviewsWithComments.length,
+		baseReviews.length,
+		item?.totalReviews || 0,
+		item?.ratings?.length || 0
+	);
 
 	// Resolve the agent/provider's real name via GET /api/student/users/agent/:id
 	const agentId = item?.agentId;
@@ -353,21 +431,55 @@ export function Detail() {
 			showToast('Please write a comment');
 			return;
 		}
+
+		const commentText = reviewComment.trim();
+		setReviewComment('');
+
+		const tempId = `temp-${Date.now()}`;
+		const optimisticReview = {
+			id: tempId,
+			_id: tempId,
+			comment: commentText,
+			createdAt: new Date().toISOString(),
+			student: {
+				id: currentUser?.id || currentUser?._id,
+				_id: currentUser?.id || currentUser?._id,
+				firstName: currentUser?.firstName || 'Student',
+				lastName: currentUser?.lastName || '',
+				profileImage: currentUser?.profileImage,
+			},
+		};
+
+		// Instantly render the new review on screen (0ms latency!)
+		setLocalAddedReviews((prev) => [optimisticReview, ...prev]);
+
 		try {
-			await addReview({
+			const res = await addReview({
 				itemId: item.id,
 				itemCategory: ITEM_CATEGORY_MAP[item.kind] || 'PRODUCT',
-				comment: reviewComment,
+				comment: commentText,
 			}).unwrap();
+
 			showToast('Review submitted successfully');
-			setReviewComment('');
-			// Refetch the current item so the new review appears
-			if (item.kind === 'product') refetchProduct();
-			if (item.kind === 'lodge') refetchProperty();
-			if (item.kind === 'service') refetchService();
+
+			const realData = res?.data || res;
+			if (realData && (realData.id || realData._id)) {
+				setLocalAddedReviews((prev) =>
+					prev.map((r) =>
+						r.id === tempId ? { ...r, ...realData, comment: commentText } : r,
+					),
+				);
+			}
+
+			// Invalidate background queries
+			refetchProduct();
+			refetchProperty();
+			refetchService();
 		} catch (err) {
 			console.error('Failed to submit review', err);
 			showToast(err?.data?.message || 'Failed to submit review');
+			// Revert on error
+			setLocalAddedReviews((prev) => prev.filter((r) => r.id !== tempId));
 		}
 	}
 
@@ -457,12 +569,19 @@ export function Detail() {
 							/>
 						</button>
 						<div className='absolute top-4 right-4 flex gap-2 pointer-events-auto'>
-							<button className='w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow border-none cursor-pointer hover:bg-white'>
+							{/* <button className='w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow border-none cursor-pointer hover:bg-white'>
 								<Icon
 									name='share'
 									size={18}
 									style={{ color: '#1f2430' }}
 								/>
+							</button> */}
+							<button
+								onClick={() => setIsReportModalOpen(true)}
+								className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow border-none cursor-pointer hover:bg-white text-slate-700"
+								title="Report listing"
+							>
+								<Icon name="flag" size={18} />
 							</button>
 							<button
 								onClick={handleSave}
@@ -526,7 +645,7 @@ export function Detail() {
 						<span className='text-xs text-cx-muted'>
 							{item.dist}
 						</span>
-						{item.totalReviews > 0 && (
+						{displayTotalReviews > 0 && (
 							<>
 								<span className='text-cx-muted'>·</span>
 								<Icon
@@ -539,7 +658,7 @@ export function Detail() {
 									{Number(item.rating).toFixed(1)}
 								</span>
 								<span className='text-[10px] text-cx-muted'>
-									({item.totalReviews})
+									({displayTotalReviews})
 								</span>
 							</>
 						)}
@@ -908,7 +1027,7 @@ export function Detail() {
 								/>
 								<span>{item.dist}</span>
 							</div>
-							{item.totalReviews > 0 && (
+							{displayTotalReviews > 0 && (
 								<>
 									<span>·</span>
 									<div className='flex items-center gap-1'>
@@ -922,7 +1041,7 @@ export function Detail() {
 											{Number(item.rating).toFixed(1)}
 										</span>
 										<span className='text-xs text-cx-muted'>
-											({item.totalReviews})
+											({displayTotalReviews})
 										</span>
 									</div>
 								</>
@@ -932,10 +1051,17 @@ export function Detail() {
 						</div>
 					</div>
 					<div className='flex items-center gap-2'>
-						<button className='flex items-center gap-1.5 px-4 py-2 rounded-xl border border-cx-border bg-white text-cx-ink3 text-sm font-semibold cursor-pointer hover:bg-cx-bg transition-colors'>
+						<button
+							onClick={() => setIsReportModalOpen(true)}
+							className='flex items-center gap-1.5 px-4 py-2 rounded-xl border border-cx-border bg-white text-slate-600 text-sm font-semibold cursor-pointer hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors'
+						>
+							<Icon name='flag' size={16} />
+							Report
+						</button>
+						{/* <button className='flex items-center gap-1.5 px-4 py-2 rounded-xl border border-cx-border bg-white text-cx-ink3 text-sm font-semibold cursor-pointer hover:bg-cx-bg transition-colors'>
 							<Icon name='share' size={16} />
 							Share
-						</button>
+						</button> */}
 						<button
 							onClick={handleSave}
 							disabled={isMutating}
@@ -1122,7 +1248,7 @@ export function Detail() {
 					</div>
 
 						{/* Reviews Section (Desktop) */}
-						<div className='mt-8'>
+						<div className='mt-5 mb-5'>
 							<h2 className='font-bold text-cx-ink text-lg mb-4'>
 								Reviews & Ratings
 							</h2>
@@ -1182,6 +1308,7 @@ export function Detail() {
 											</div>
 											<div className='w-full md:w-[400px]'>
 												<textarea
+													ref={reviewInputRef}
 													value={reviewComment}
 													onChange={(e) =>
 														setReviewComment(
@@ -1337,9 +1464,29 @@ export function Detail() {
 														)}
 													</div>
 													{rev.comment && (
-														<p className='text-sm text-cx-ink4 leading-relaxed mt-2'>
-															{rev.comment}
-														</p>
+														<div className="flex items-start justify-between gap-3 mt-2">
+															<p className='text-sm text-cx-ink4 leading-relaxed flex-1'>
+																{rev.comment}
+															</p>
+															{isMyReview(rev) && (
+																<div className="flex items-center gap-1 flex-none">
+																	<button
+																		onClick={() => handleEditReview(rev)}
+																		className="p-1.5 rounded-lg text-slate-400 hover:text-cx-teal hover:bg-teal-50 transition-colors border-none cursor-pointer"
+																		title="Edit your review"
+																	>
+																		<Icon name="edit" size={16} />
+																	</button>
+																	<button
+																		onClick={() => handleDeleteReview(rev.id || rev._id)}
+																		className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors border-none cursor-pointer"
+																		title="Delete your review"
+																	>
+																		<Icon name="delete" size={16} />
+																	</button>
+																</div>
+															)}
+														</div>
 													)}
 													{rev.agentReply && (
 														<div className='mt-4 bg-[#f8fafc] p-4 rounded-xl border border-cx-border border-l-4 border-l-[#7c6cf0]'>
@@ -1422,7 +1569,7 @@ export function Detail() {
 										{item.dist}
 									</span>
 								</div>
-								{item.totalReviews > 0 && (
+								{displayTotalReviews > 0 && (
 									<div className='flex items-center justify-between text-sm'>
 										<span className='text-cx-muted'>
 											Rating
@@ -1438,7 +1585,7 @@ export function Detail() {
 												{Number(item.rating).toFixed(1)}
 											</span>
 											<span className='text-xs text-cx-muted'>
-												({item.totalReviews})
+												({displayTotalReviews})
 											</span>
 										</div>
 									</div>
@@ -1547,6 +1694,15 @@ export function Detail() {
 					)}
 				</div>
 			)}
+
+			<ReportModal
+				isOpen={isReportModalOpen}
+				onClose={() => setIsReportModalOpen(false)}
+				targetType="ITEM"
+				targetId={item?.id || id}
+				itemCategory={ITEM_CATEGORY_MAP[item?.kind] || 'PROPERTY'}
+				targetName={item?.name}
+			/>
 		</div>
 	);
 }

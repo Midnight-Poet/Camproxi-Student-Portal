@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context.jsx';
-import { CATEGORIES, ALL_ITEMS } from '../data.js'; // Fallback
+import { CATEGORIES, ALL_ITEMS, getPrice } from '../data.js';
 import { ListingCard } from '../components/ListingCard.jsx';
-import { PlaceholderImg } from '../components/PlaceholderImg.jsx';
 import { Icon } from '../components/Icon.jsx';
-import { getPrice } from '../data.js';
 import { normalizeItem } from '../utils/normalizeItem.js';
 import { 
   useGetProductsQuery,
@@ -19,13 +17,28 @@ import 'leaflet/dist/leaflet.css';
 import { getItemCoordinates, DEFAULT_MAP_CENTER } from '../utils/mapHelpers.js';
 import { getDistanceToCampus } from '../utils/geo.js';
 import { renderToString } from 'react-dom/server';
-const DISTANCE_OPTIONS = ['< 0.5 km', '< 1 km', '< 2 km', 'Any distance'];
+
+const DISTANCE_OPTIONS = ['Any distance', '< 0.5 km', '< 1 km', '< 2 km'];
+const PRICE_OPTIONS = ['Any price', '< ₦50k', '₦50k - ₦150k', '₦150k - ₦300k', '> ₦300k'];
 
 const SUB_FILTERS = {
   Vendor: ['All', 'Food & Drinks', 'Electronics & Tech', 'Study & Office', 'Personal Care', 'Fashion', 'Appliances', 'Entertainment', 'Transport'],
   Lodge: ['All', 'Self Con', 'Single Room', '1 Bed', '2 Bed', '3 Bed', 'Shared'],
   Service: ['All', 'Laundry', 'Cleaning', 'Repair', 'Tutoring', 'Design', 'Hair/Beauty', 'Logistics']
 };
+
+function getItemNumericPrice(item) {
+  if (typeof item.price === 'number') return item.price;
+  if (typeof item.price === 'string') {
+    const num = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+    if (!isNaN(num)) return num;
+  }
+  if (item.menu && item.menu.length > 0) {
+    const prices = item.menu.map(m => m.p).filter(p => typeof p === 'number' && isFinite(p));
+    if (prices.length > 0) return Math.min(...prices);
+  }
+  return 0;
+}
 
 // Component to handle flying the map to a marker or fitting to bounds
 function MapController({ selectedPin, markers, campusFilter, schoolsData }) {
@@ -35,11 +48,9 @@ function MapController({ selectedPin, markers, campusFilter, schoolsData }) {
     if (selectedPin) {
       const marker = markers.find(m => m.id === selectedPin);
       if (marker && marker.coords) {
-        // Fly to marker with zoom 16
         map.flyTo(marker.coords, 16, { animate: true, duration: 1.5 });
       }
     } else {
-      // Focus strictly on the campus(es)
       const campusCoords = [];
       if (schoolsData) {
         schoolsData.forEach(school => {
@@ -61,14 +72,12 @@ function MapController({ selectedPin, markers, campusFilter, schoolsData }) {
 
       if (campusCoords.length > 0) {
         if (campusFilter !== 'All' && campusCoords.length === 1) {
-          // If a single campus is selected, fly directly to it
           map.flyTo(campusCoords[0], 14, { animate: true, duration: 1.5 });
         } else {
-          // If 'All' is selected, fit bounds to cover all campuses
           const bounds = L.latLngBounds(campusCoords);
           map.fitBounds(bounds, { 
             paddingTopLeft: [50, 50],
-            paddingBottomRight: [50, 300], // Account for bottom cards
+            paddingBottomRight: [50, 300],
             maxZoom: 14,
             animate: true, 
             duration: 1.0 
@@ -83,15 +92,31 @@ function MapController({ selectedPin, markers, campusFilter, schoolsData }) {
 
 export function Explore() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') || '';
   const { state, dispatch } = useApp();
   const { catFilter, exploreMode } = state;
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(queryParam);
   const [selectedPin, setSelectedPin] = useState(null);
-  const [distanceFilter, setDistanceFilter] = useState('Any distance');
   const [subFilter, setSubFilter] = useState('All');
+  const [priceFilter, setPriceFilter] = useState('Any price');
+
+  // Keep search state synchronized with URL q param
+  useEffect(() => {
+    if (queryParam !== search) {
+      setSearch(queryParam);
+    }
+  }, [queryParam]);
+
+  // Ensure map mode is inaccessible when category is NOT Lodge
+  useEffect(() => {
+    if (catFilter !== 'Lodge' && exploreMode === 'map') {
+      dispatch({ type: 'SET_EXPLORE_MODE', value: 'list' });
+    }
+  }, [catFilter, exploreMode, dispatch]);
 
   // Prevent background scrolling when map is full screen
-  React.useEffect(() => {
+  useEffect(() => {
     if (exploreMode === 'map') {
       document.body.style.overflow = 'hidden';
     } else {
@@ -126,7 +151,6 @@ export function Explore() {
         });
       }
     });
-    // Add some default fallback if none found just for preview purposes
     if (campuses.length === 1) {
       campuses.push('Crystal Campus', 'Main Campus', 'North Campus');
     }
@@ -145,14 +169,12 @@ export function Explore() {
     const matchCat = item.cat === state.catFilter || state.catFilter === 'All';
     const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase());
     const matchSub = subFilter === 'All' || item.type === subFilter;
-    
-    // Campus filter match
     const matchCampus = state.campusFilter === 'All' || item.campus === state.campusFilter;
     
     // Distance filter match
     let matchDistance = true;
     if (state.distanceFilter !== 'Any distance') {
-      const distStr = getDistanceToCampus(item, schoolsData); // e.g. "1.2 km from Main Campus Gate"
+      const distStr = getDistanceToCampus(item, schoolsData);
       const distMatch = distStr.match(/([0-9.]+)/);
       if (distMatch) {
         const distKm = parseFloat(distMatch[1]);
@@ -162,11 +184,24 @@ export function Explore() {
       }
     }
 
-    return matchCat && matchSearch && matchSub && matchCampus && matchDistance;
+    // Price range filter match
+    let matchPrice = true;
+    if (priceFilter !== 'Any price') {
+      const priceNum = getItemNumericPrice(item);
+      if (priceFilter === '< ₦50k' && priceNum >= 50000) matchPrice = false;
+      if (priceFilter === '₦50k - ₦150k' && (priceNum < 50000 || priceNum > 150000)) matchPrice = false;
+      if (priceFilter === '₦150k - ₦300k' && (priceNum < 150000 || priceNum > 300000)) matchPrice = false;
+      if (priceFilter === '> ₦300k' && priceNum <= 300000) matchPrice = false;
+    }
+
+    return matchCat && matchSearch && matchSub && matchCampus && matchDistance && matchPrice;
   });
 
-  // Map markers
-  const mapMarkers = displayItems.map((item, i) => {
+  // Filter property lodges for map (only properties should be listed on map)
+  const propertyItems = filtered.filter(item => item.cat === 'Lodges' || item.kind === 'lodge');
+
+  // Map markers - ONLY properties
+  const mapMarkers = propertyItems.map((item, i) => {
     const price = getPrice(item);
     const coords = getItemCoordinates(item, i);
     return { ...item, coords, price };
@@ -179,7 +214,6 @@ export function Explore() {
       const card = document.getElementById(`map-card-${selectedPin}`);
       const container = document.getElementById('map-cards-container');
       if (card && container) {
-        // Calculate the position to scroll the container so the card is centered
         const containerWidth = container.offsetWidth;
         const cardWidth = card.offsetWidth;
         const cardOffset = card.offsetLeft;
@@ -188,6 +222,8 @@ export function Explore() {
       }
     }
   }, [selectedPin, exploreMode]);
+
+  const isLodge = state.catFilter === 'Lodge';
 
   const searchAndToggle = (
     <div className="flex flex-col md:flex-row gap-4 pointer-events-auto w-full max-w-3xl mx-auto">
@@ -209,31 +245,33 @@ export function Explore() {
         )}
       </div>
 
-      {/* List/Map Toggle */}
-      <div className="flex-none flex items-center rounded-full overflow-hidden border border-cx-border bg-white shadow-lg p-1">
-        <button
-          onClick={() => dispatch({ type: 'SET_EXPLORE_MODE', value: 'list' })}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold border-none cursor-pointer transition-colors"
-          style={{
-            background: exploreMode === 'list' ? '#1f2430' : 'transparent',
-            color: exploreMode === 'list' ? '#fff' : '#5b6270',
-          }}
-        >
-          <Icon name="view_list" size={18} />
-          List
-        </button>
-        <button
-          onClick={() => dispatch({ type: 'SET_EXPLORE_MODE', value: 'map' })}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold border-none cursor-pointer transition-colors"
-          style={{
-            background: exploreMode === 'map' ? '#1f2430' : 'transparent',
-            color: exploreMode === 'map' ? '#fff' : '#5b6270',
-          }}
-        >
-          <Icon name="map" size={18} />
-          Map
-        </button>
-      </div>
+      {/* List/Map Toggle - ONLY Accessible when category is Lodge */}
+      {isLodge && (
+        <div className="flex-none flex items-center rounded-full overflow-hidden border border-cx-border bg-white shadow-lg p-1">
+          <button
+            onClick={() => dispatch({ type: 'SET_EXPLORE_MODE', value: 'list' })}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold border-none cursor-pointer transition-colors"
+            style={{
+              background: exploreMode === 'list' ? '#1f2430' : 'transparent',
+              color: exploreMode === 'list' ? '#fff' : '#5b6270',
+            }}
+          >
+            <Icon name="view_list" size={18} />
+            List
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_EXPLORE_MODE', value: 'map' })}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold border-none cursor-pointer transition-colors"
+            style={{
+              background: exploreMode === 'map' ? '#1f2430' : 'transparent',
+              color: exploreMode === 'map' ? '#fff' : '#5b6270',
+            }}
+          >
+            <Icon name="map" size={18} />
+            Map
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -244,6 +282,9 @@ export function Explore() {
           key={cat.name}
           onClick={() => {
             dispatch({ type: 'SET_CAT_FILTER', value: cat.name });
+            if (cat.name !== 'Lodge' && exploreMode === 'map') {
+              dispatch({ type: 'SET_EXPLORE_MODE', value: 'list' });
+            }
             setSubFilter('All');
             setSelectedPin(null);
           }}
@@ -261,15 +302,13 @@ export function Explore() {
     </div>
   );
 
-  const isLodge = state.catFilter === 'Lodge';
-
   const CustomDropdown = ({ value, options, onChange, icon }) => {
     const [open, setOpen] = React.useState(false);
     return (
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-w-[120px]">
         <button 
           onClick={() => setOpen(!open)}
-          className="w-full flex items-center justify-between bg-white/90 backdrop-blur border border-white/40 text-cx-ink text-xs font-bold rounded-xl px-3 py-2.5 shadow-sm outline-none transition-all"
+          className="w-full flex items-center justify-between bg-white/90 backdrop-blur border border-white/40 text-cx-ink text-xs font-bold rounded-xl px-3 py-2.5 shadow-sm outline-none transition-all cursor-pointer"
         >
           <div className="flex items-center gap-1.5 truncate">
             {icon && <Icon name={icon} size={14} style={{ color: '#5b6270' }} />}
@@ -283,7 +322,7 @@ export function Explore() {
               <button
                 key={opt}
                 onClick={() => { onChange(opt); setOpen(false); }}
-                className="w-full text-left px-3 py-2 text-xs font-bold transition-colors hover:bg-cx-bg"
+                className="w-full text-left px-3 py-2 text-xs font-bold transition-colors hover:bg-cx-bg border-none cursor-pointer"
                 style={{
                   color: value === opt ? '#14b8a6' : '#5b6270',
                   background: value === opt ? '#e2f7f3' : 'transparent',
@@ -299,9 +338,9 @@ export function Explore() {
   };
 
   const subFilterChips = (
-    <div className="flex flex-col gap-2 w-full max-w-3xl mx-auto pointer-events-auto">
-      {/* Existing Sub-Category Chips (Hidden on Mobile for Lodge, Visible for others) */}
-      <div className={`${isLodge ? 'hidden md:flex' : 'flex'} gap-2 overflow-x-auto scrollbar-hide py-1 snap-x`}>
+    <div className="flex flex-col gap-2.5 w-full max-w-3xl mx-auto pointer-events-auto">
+      {/* Sub-Category Chips */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 snap-x">
         {SUB_FILTERS[state.catFilter === 'All' ? 'Vendor' : state.catFilter].map(sf => (
           <button
             key={sf}
@@ -318,331 +357,221 @@ export function Explore() {
         ))}
       </div>
       
-      {/* Campus and Distance Dropdowns (Visible ONLY for Lodge) */}
-      {isLodge && (
-        <div className="flex gap-2 w-full px-1">
-          <CustomDropdown 
-            value={state.campusFilter}
-            options={ALL_CAMPUSES}
-            icon="school"
-            onChange={val => {
-              dispatch({ type: 'SET_CAMPUS_FILTER', value: val });
-              setSelectedPin(null);
-            }}
-          />
-          <CustomDropdown 
-            value={state.distanceFilter}
-            options={DISTANCE_OPTIONS}
-            icon="straighten"
-            onChange={val => {
-              dispatch({ type: 'SET_DISTANCE_FILTER', value: val });
-              setSelectedPin(null);
-            }}
-          />
-        </div>
-      )}
+      {/* Price, Campus and Distance Filter Dropdowns */}
+      <div className="flex gap-2 w-full px-1">
+        <CustomDropdown 
+          value={priceFilter}
+          options={PRICE_OPTIONS}
+          icon="payments"
+          onChange={val => setPriceFilter(val)}
+        />
+        {isLodge && (
+          <>
+            <CustomDropdown 
+              value={state.campusFilter}
+              options={ALL_CAMPUSES}
+              icon="school"
+              onChange={val => {
+                dispatch({ type: 'SET_CAMPUS_FILTER', value: val });
+                setSelectedPin(null);
+              }}
+            />
+            <CustomDropdown 
+              value={state.distanceFilter}
+              options={DISTANCE_OPTIONS}
+              icon="straighten"
+              onChange={val => {
+                dispatch({ type: 'SET_DISTANCE_FILTER', value: val });
+                setSelectedPin(null);
+              }}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 
   return (
     <div className="min-h-screen relative">
-      {/* --- FULL SCREEN MAP VIEW --- */}
-      {exploreMode === 'map' && (
+      {/* --- FULL SCREEN MAP VIEW (Lodges Only, Clean Overlay) --- */}
+      {exploreMode === 'map' && isLodge && (
         <div className="fixed top-0 left-0 right-0 bottom-0 z-[40] bg-cx-bg flex flex-col">
-          {/* Floating Controls on Map */}
-          <div className="absolute top-6 md:top-24 left-0 right-0 z-[1000] px-4 flex flex-col gap-4">
+          {/* Uncrowded Floating Controls on Map */}
+          <div className="absolute top-6 md:top-24 left-0 right-0 z-[1000] px-4 flex flex-col gap-3">
             {searchAndToggle}
             {categoryChips}
-            {subFilterChips}
           </div>
 
           {/* Interactive Map Area */}
           <div className="flex-1 relative z-10 bg-[#e5f6f4]">
             <MapContainer 
               center={DEFAULT_MAP_CENTER} 
-              zoom={14} 
+              zoom={13} 
+              className="w-full h-full"
               zoomControl={false}
-              className="absolute inset-0 w-full h-full"
             >
               <TileLayer
-                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              <MapController selectedPin={selectedPin} markers={mapMarkers} campusFilter={state.campusFilter} schoolsData={schoolsData} />
-              
-              {!isLoadingItems && mapMarkers.filter(m => m.cat === catFilter || catFilter === 'All').map(marker => {
-                const isSelected = selectedPin === marker.id;
-                
-                // Create custom divIcon using the same styling as the old pins
+
+              <MapController 
+                selectedPin={selectedPin} 
+                markers={mapMarkers} 
+                campusFilter={state.campusFilter}
+                schoolsData={schoolsData}
+              />
+
+              {mapMarkers.map(m => {
+                const isSelected = m.id === selectedPin;
                 const customIcon = L.divIcon({
-                  className: 'bg-transparent border-none w-0 h-0',
-                  iconAnchor: [0, 0],
+                  className: 'custom-map-pin',
                   html: renderToString(
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: '50%',
-                      transform: `translate(-50%, 0) ${isSelected ? 'scale(1.1)' : 'scale(1)'}`,
-                      transformOrigin: 'bottom center',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      transition: 'all 0.2s',
-                      filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.15))',
-                      zIndex: isSelected ? 100 : 10
-                    }}>
-                      <div style={{
-                        fontWeight: 'bold',
-                        fontSize: '0.875rem',
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '9999px',
-                        cursor: 'pointer',
-                        background: isSelected ? '#1f2430' : 'white',
-                        color: isSelected ? 'white' : '#1f2430',
-                        border: '1px solid rgba(0,0,0,0.05)',
-                        whiteSpace: 'nowrap',
-                        position: 'relative',
-                        zIndex: 2
-                      }}>
-                        {marker.price.text}
+                    <div className={`relative flex items-center justify-center transition-all duration-300 ${isSelected ? 'scale-125 z-50' : 'hover:scale-110 z-10'}`}>
+                      <div className={`px-3 py-1.5 rounded-full shadow-lg border-2 flex items-center gap-1 text-xs font-bold whitespace-nowrap ${
+                        isSelected 
+                          ? 'bg-cx-teal text-white border-white ring-4 ring-teal-500/20' 
+                          : 'bg-slate-900 text-white border-slate-700 hover:bg-cx-teal'
+                      }`}>
+                        <span>{m.price?.text || 'Check Price'}</span>
                       </div>
-                      <div style={{
-                        width: '12px',
-                        height: '12px',
-                        background: isSelected ? '#1f2430' : 'white',
-                        transform: 'rotate(45deg)',
-                        marginTop: '-6px',
-                        marginBottom: '2px',
-                        zIndex: 1,
-                        borderRight: '1px solid rgba(0,0,0,0.05)',
-                        borderBottom: '1px solid rgba(0,0,0,0.05)',
-                      }} />
+                      <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-r-2 border-b-2 ${
+                        isSelected ? 'bg-cx-teal border-white' : 'bg-slate-900 border-slate-700'
+                      }`} />
                     </div>
                   ),
-                  iconSize: null,
+                  iconSize: [80, 35],
+                  iconAnchor: [40, 35]
                 });
 
                 return (
                   <Marker 
-                    key={marker.id} 
-                    position={marker.coords}
+                    key={m.id} 
+                    position={m.coords}
                     icon={customIcon}
                     eventHandlers={{
-                      click: () => setSelectedPin(isSelected ? null : marker.id),
+                      click: () => {
+                        setSelectedPin(m.id);
+                      }
                     }}
-                  />
+                  >
+                    <Popup closeButton={false} className="custom-leaflet-popup">
+                      <div className="p-1 max-w-[200px]">
+                        <h4 className="font-bold text-slate-900 text-sm">{m.name}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">{getDistanceToCampus(m, schoolsData)}</p>
+                        <button 
+                          onClick={() => navigate(`/listing/${m.id}`)}
+                          className="mt-2 w-full py-1 bg-cx-teal text-white rounded-lg text-xs font-bold border-none cursor-pointer"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </Popup>
+                  </Marker>
                 );
               })}
             </MapContainer>
           </div>
 
-          {/* Small overlay cards at the bottom of the map */}
-          <div className="absolute bottom-28 md:bottom-12 left-0 right-0 w-full z-[1000]">
-            <div id="map-cards-container" className="flex gap-4 overflow-x-auto px-4 md:pl-[320px] md:pr-8 pb-4 pt-2 scrollbar-hide snap-x">
-              {!isLoadingItems && filtered.map(item => (
-                <div
-                  key={item.id}
+          {/* Bottom Horizontal Cards Carousel on Map */}
+          <div 
+            id="map-cards-container"
+            className="absolute bottom-24 md:bottom-6 left-0 right-0 z-[1000] flex gap-4 overflow-x-auto px-4 pb-2 scrollbar-hide snap-x snap-mandatory pointer-events-auto"
+          >
+            {propertyItems.map(item => {
+              const isSelected = item.id === selectedPin;
+              const priceObj = getPrice(item);
+              const imgUrl = item.image || item.images?.[0]?.url || item.images?.[0] || item.avatar;
+
+              return (
+                <div 
                   id={`map-card-${item.id}`}
-                  onClick={() => {
-                    setSelectedPin(item.id);
-                    if (selectedPin === item.id) {
-                      navigate('/listing/' + item.id);
-                    }
-                  }}
-                  className={`flex-none w-[280px] bg-white rounded-2xl p-2.5 flex gap-3 cursor-pointer transition-all snap-start shadow-xl ${selectedPin === item.id ? 'ring-2 ring-cx-teal ring-offset-2' : ''}`}
+                  key={item.id} 
+                  onClick={() => setSelectedPin(item.id)}
+                  className={`snap-center flex-none w-[290px] sm:w-[340px] transition-all cursor-pointer ${
+                    isSelected ? 'scale-[1.02] z-20' : 'opacity-90 hover:opacity-100'
+                  }`}
                 >
-                  <div className="w-20 h-20 rounded-xl overflow-hidden flex-none bg-cx-bg">
-                    {item.images && item.images.length > 0 ? (
-                      <img src={item.images[0].url} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <PlaceholderImg label={item.label} style={{ width: '100%', height: '100%' }} />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 py-0.5 flex flex-col justify-between">
-                    <div>
-                      <p className="font-bold text-cx-ink text-sm truncate">{item.name}</p>
-                      <p className="text-xs font-semibold text-cx-muted truncate">{item.type}</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Icon name="star" size={12} fill={1} style={{ color: '#1f2430' }} />
-                        <span className="text-xs font-bold text-cx-ink">{item.rating}</span>
+                  <div className={`bg-white/95 backdrop-blur-xl rounded-3xl p-3 shadow-2xl border transition-all ${
+                    isSelected ? 'border-cx-teal ring-4 ring-teal-500/20' : 'border-white/60'
+                  }`}>
+                    <div className="flex gap-3 items-center">
+                      <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 flex-none relative">
+                        {imgUrl ? (
+                          <img 
+                            src={imgUrl} 
+                            alt={item.name} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                            <Icon name="home_work" size={24} className="text-slate-400" />
+                          </div>
+                        )}
+                        <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur">
+                          ★ {item.rating || '4.8'}
+                        </span>
                       </div>
-                      <span className="text-sm font-extrabold text-cx-ink">{getPrice(item).text}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-cx-teal block mb-0.5">
+                          {item.type || item.category || 'Lodge'}
+                        </span>
+                        <h4 className="font-extrabold text-slate-900 text-sm truncate mb-0.5">
+                          {item.name}
+                        </h4>
+                        <p className="text-xs font-bold text-slate-700">
+                          {priceObj?.text || 'Check price'} <span className="text-[11px] font-semibold text-slate-400">{priceObj?.sub}</span>
+                        </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/listing/${item.id}`);
+                          }}
+                          className="mt-1.5 px-3 py-1 bg-slate-900 hover:bg-cx-teal text-white rounded-full text-[11px] font-bold transition-colors border-none cursor-pointer"
+                        >
+                          View Details →
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
-              {/* Spacer for proper end padding in scroll container */}
-              <div className="flex-none w-4" />
-            </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Main Layout Overlay */}
-      <div className={`relative z-10 md:flex md:gap-8 h-full ${exploreMode === 'map' ? 'pointer-events-none' : ''}`}>
-        {/* Sidebar (desktop) */}
-        <aside className="hidden md:block flex-none w-[260px] pointer-events-auto">
-          <div className="sticky top-24 space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide pb-8">
-            <div className="bg-white rounded-3xl border border-cx-border p-5 shadow-sm">
-              <p className="text-xs font-bold text-cx-ink3 mb-4 uppercase tracking-wider">Categories</p>
-              <div className="space-y-1.5">
-                {CATEGORIES.map(cat => (
-                  <button
-                    key={cat.name}
-                    onClick={() => {
-                      dispatch({ type: 'SET_CAT_FILTER', value: cat.name });
-                      setSubFilter('All');
-                      setSelectedPin(null);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-none cursor-pointer text-left transition-all hover:bg-cx-bg"
-                    style={{
-                      background: state.catFilter === cat.name ? '#1f2430' : 'transparent',
-                      color: state.catFilter === cat.name ? 'white' : '#1f2430',
-                    }}
-                  >
-                    <Icon name={cat.icon} size={20} />
-                    <span className="font-bold flex-1">{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-
-              {!isLodge && SUB_FILTERS[state.catFilter === 'All' ? 'Vendor' : state.catFilter] && (
-                <div className="border-t border-cx-border mt-6 pt-6">
-                  <p className="text-xs font-bold text-cx-ink3 mb-4 uppercase tracking-wider">Filters</p>
-                  <div className="space-y-1.5">
-                    {SUB_FILTERS[state.catFilter === 'All' ? 'Vendor' : state.catFilter].map(sf => (
-                      <button
-                        key={sf}
-                        onClick={() => setSubFilter(sf)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border-none cursor-pointer text-sm transition-colors hover:bg-cx-bg"
-                        style={{
-                          background: subFilter === sf ? '#e2f7f3' : 'transparent',
-                          color: subFilter === sf ? '#14b8a6' : '#42474f',
-                          fontWeight: subFilter === sf ? 700 : 500,
-                        }}
-                      >
-                        {sf}
-                        {subFilter === sf && (
-                          <Icon name="check" size={18} style={{ color: '#14b8a6' }} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {isLodge && (
-              <>
-                <div className="bg-white rounded-3xl border border-cx-border p-5 shadow-sm">
-                  <p className="text-xs font-bold text-cx-ink3 mb-4 uppercase tracking-wider">Campus</p>
-                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto scrollbar-hide">
-                    {ALL_CAMPUSES.map(campus => (
-                      <button
-                        key={campus}
-                        onClick={() => {
-                          dispatch({ type: 'SET_CAMPUS_FILTER', value: campus });
-                          setSelectedPin(null);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-none cursor-pointer text-left transition-all hover:bg-cx-bg"
-                        style={{
-                          background: state.campusFilter === campus ? '#14b8a6' : 'transparent',
-                          color: state.campusFilter === campus ? 'white' : '#5b6270',
-                        }}
-                      >
-                        <span className="font-bold flex-1 text-sm">{campus}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-3xl border border-cx-border p-5 shadow-sm">
-                  <p className="text-xs font-bold text-cx-ink3 mb-4 uppercase tracking-wider">Distance</p>
-                  <div className="space-y-1.5">
-                    {DISTANCE_OPTIONS.map(dist => (
-                      <button
-                        key={dist}
-                        onClick={() => {
-                          dispatch({ type: 'SET_DISTANCE_FILTER', value: dist });
-                          setSelectedPin(null);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-none cursor-pointer text-left transition-all hover:bg-cx-bg"
-                        style={{
-                          background: state.distanceFilter === dist ? '#14b8a6' : 'transparent',
-                          color: state.distanceFilter === dist ? 'white' : '#5b6270',
-                        }}
-                      >
-                        <span className="font-bold flex-1 text-sm">{dist}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
-
-        <div className="flex-1 min-w-0 flex flex-col h-[calc(100vh-80px)]">
-          {/* Header row: Search + Toggle */}
-          <div className="sticky top-0 z-30 pt-2 pb-4 -mx-4 px-4 md:mx-0 md:px-0 flex pointer-events-auto">
+      {/* --- STANDARD LIST VIEW --- */}
+      {exploreMode === 'list' && (
+        <div className="max-w-5xl mx-auto py-2 md:py-6">
+          <div className="flex flex-col gap-4 mb-6">
             {searchAndToggle}
+            {categoryChips}
+            {subFilterChips}
           </div>
 
-          {/* List Content Layer */}
-          <div className={`flex-1 min-h-0 relative pointer-events-auto ${exploreMode === 'map' ? 'hidden' : 'block'}`}>
-            {/* Mobile: category chips */}
-            <div className="md:hidden flex-none -mx-4 px-4 pb-4">
-              {categoryChips}
+          {/* Grid of Filtered Items */}
+          {isLoadingItems ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="bg-white border border-cx-border rounded-3xl p-4 animate-pulse shadow-sm h-72"></div>
+              ))}
             </div>
-
-            {/* Sub-filters for Mobile */}
-            <div className="md:hidden flex-none -mx-4 px-4">
-              {subFilterChips}
+          ) : filtered.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-cx-border my-8">
+              <Icon name="search_off" size={48} className="text-cx-muted mb-3 mx-auto" />
+              <h3 className="text-lg font-bold text-cx-ink mb-1">No listings found</h3>
+              <p className="text-sm text-cx-muted">Try adjusting your filters or search keywords.</p>
             </div>
-
-            {/* List Header */}
-            <div className="flex items-center justify-between mb-6 flex-none">
-              <h2 className="text-xl font-extrabold text-cx-ink">
-                {catFilter}
-              </h2>
-              <p className="text-sm font-semibold text-cx-muted bg-white px-3 py-1 rounded-full border border-cx-border">
-                {isLoadingItems ? (
-                  <span className="inline-block w-8 h-4 bg-cx-bg animate-pulse rounded" />
-                ) : filtered.length} found
-              </p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {filtered.map(item => (
+                <ListingCard key={item.id} item={item} variant="grid" />
+              ))}
             </div>
-
-            {/* Grid */}
-            <div className="overflow-y-auto h-full pb-32">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {isLoadingItems ? (
-                  [1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="bg-white border border-cx-border rounded-3xl p-4 animate-pulse shadow-sm">
-                      <div className="h-40 bg-cx-bg rounded-2xl mb-4"></div>
-                      <div className="h-5 bg-cx-bg rounded w-3/4 mb-3"></div>
-                      <div className="h-4 bg-cx-bg rounded w-1/2"></div>
-                    </div>
-                  ))
-                ) : filtered.length > 0 ? (
-                  filtered.map(item => (
-                    <ListingCard key={item.id} item={item} variant="grid" />
-                  ))
-                ) : (
-                  <div className="col-span-full flex flex-col items-center justify-center py-24 text-center bg-white rounded-3xl border border-cx-border shadow-sm">
-                    <div className="w-16 h-16 bg-cx-bg rounded-full flex items-center justify-center mb-4">
-                      <Icon name="search_off" size={32} style={{ color: '#9aa0ab' }} />
-                    </div>
-                    <h3 className="text-lg font-bold text-cx-ink">No results found</h3>
-                    <p className="text-sm text-cx-muted mt-2 max-w-sm">We couldn't find anything matching your search in {catFilter}. Try adjusting your filters.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

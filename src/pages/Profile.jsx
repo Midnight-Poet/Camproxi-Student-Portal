@@ -49,7 +49,15 @@ export function Profile() {
   const schoolName = school ? `${school.code} ${school.campus?.[0]?.name || ''}`.trim() : null;
 
   const { data: requestsRes } = useGetRequestsQuery();
-  const rawRequests = Array.isArray(requestsRes) ? requestsRes : (requestsRes?.data || []);
+  const rawRequests = Array.isArray(requestsRes)
+    ? requestsRes
+    : (Array.isArray(requestsRes?.data)
+        ? requestsRes.data
+        : (Array.isArray(requestsRes?.data?.requests)
+            ? requestsRes.data.requests
+            : (Array.isArray(requestsRes?.requests)
+                ? requestsRes.requests
+                : [])));
   const interestCount = rawRequests.length;
 
   const [logoutApi] = useLogoutMutation();

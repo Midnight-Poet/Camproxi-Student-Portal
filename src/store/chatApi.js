@@ -7,7 +7,7 @@ export const chatApi = apiSlice.injectEndpoints({
       providesTags: ['Chats'],
       transformResponse: (response) => {
         // Debug: log the raw API response shape to help diagnose issues
-        console.log('[getChats] raw response:', JSON.stringify(response)?.substring(0, 500));
+        // console.log('[getChats] raw response:', JSON.stringify(response)?.substring(0, 500));
         
         // Normalize: API may return an array directly or { data: [...] }
         const chats = Array.isArray(response) ? response : (response?.data || []);
@@ -25,6 +25,11 @@ export const chatApi = apiSlice.injectEndpoints({
           };
         });
       },
+    }),
+
+    getChatById: builder.query({
+      query: (chatId) => `/chats/${chatId}`,
+      providesTags: (result, error, chatId) => [{ type: 'Chats', id: chatId }],
     }),
 
     getChatMessages: builder.query({
@@ -80,12 +85,22 @@ export const chatApi = apiSlice.injectEndpoints({
         }
       },
     }),
+
+    deleteChat: builder.mutation({
+      query: (chatId) => ({
+        url: `/chats/${chatId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Chats'],
+    }),
   }),
 });
 
 export const {
   useGetChatsQuery,
+  useGetChatByIdQuery,
   useGetChatMessagesQuery,
   useInitiateChatMutation,
   useMarkChatReadMutation,
+  useDeleteChatMutation,
 } = chatApi;

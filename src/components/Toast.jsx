@@ -10,8 +10,8 @@ export function Toast() {
   const position = toast?.position || 'bottom';
 
   const positionClasses = position === 'top' 
-    ? 'top-6' 
-    : 'bottom-24';
+    ? 'top-20 md:top-10' 
+    : 'bottom-16 md:bottom-8';
 
   const hiddenTransform = position === 'top'
     ? 'translateX(-50%) translateY(-30px) scale(0.95)'
@@ -24,7 +24,7 @@ export function Toast() {
 
   return (
     <div
-      className={`fixed ${positionClasses} left-1/2 z-[100] pointer-events-none w-full max-w-[92vw] md:max-w-md flex justify-center`}
+      className={`fixed ${positionClasses} left-1/2 z-[100] pointer-events-none flex justify-center px-4 w-auto max-w-full`}
       style={{
         transition: 'opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         opacity: visible ? 1 : 0,
@@ -33,10 +33,10 @@ export function Toast() {
     >
       {visible && (
         <div 
-          className={`pointer-events-auto w-full relative overflow-hidden rounded-[24px] shadow-[0_24px_50px_rgba(0,0,0,0.12)] border transition-all ${
+          className={`pointer-events-auto w-auto max-w-[90vw] md:max-w-md relative overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,0.18)] border transition-all ${
             toast.type === 'notification' 
-              ? 'bg-white/90 backdrop-blur-2xl border-white/60 p-4 text-slate-800' 
-              : 'bg-slate-900/95 backdrop-blur-xl border-slate-800 px-5 py-4 text-white flex items-center justify-center text-center gap-3'
+              ? 'bg-white/95 backdrop-blur-2xl border-white/60 p-4 rounded-[24px] text-slate-800 w-full' 
+              : 'bg-slate-900/95 backdrop-blur-xl border-slate-800/80 px-5 py-3 rounded-full text-white flex items-center justify-center text-center gap-2.5'
           }`}
         >
           {toast.type === 'notification' ? (

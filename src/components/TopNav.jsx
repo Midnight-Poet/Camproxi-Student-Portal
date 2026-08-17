@@ -149,13 +149,13 @@ export function TopNav() {
             onClick={() => navigate('/home')}
           >
             <div
-              className="w-9 h-9 rounded-[12px] flex items-center justify-center font-extrabold text-white text-[17px] transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+              className="w-9 h-9 rounded-[12px] flex items-center justify-center font-extrabold text-white text-[15px] tracking-tighter transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
               style={{
                 background: 'linear-gradient(135deg, #14b8a6 0%, #7c6cf0 100%)',
                 boxShadow: '0 4px 12px rgba(20,184,166,0.35)',
               }}
             >
-              C
+              CX
             </div>
             <span
               className="font-extrabold text-[20px] tracking-tight hidden lg:inline"

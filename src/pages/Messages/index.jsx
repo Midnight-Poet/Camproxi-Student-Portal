@@ -3,11 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context';
 import { Icon } from '../../components/Icon';
 import { AvatarCircle } from '../../components/ui/AvatarCircle';
+import { ReportModal } from '../../components/ReportModal';
 import { 
   useGetChatsQuery, 
   useGetChatMessagesQuery,
   useMarkChatReadMutation,
   useInitiateChatMutation,
+  useDeleteChatMutation,
   useGetMeQuery
 } from '../../store/apiSlice';
 import { useChatSocket } from '../../hooks/useChatSocket';
@@ -27,10 +29,12 @@ export function Messages() {
   const newAgentAvatar = params.get('avatar');
 
   const [isHeaderMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [openMessageDropdown, setOpenMessageDropdown] = useState(null);
 
   const [activeChatId, setActiveChatId] = useState(initialChatId || null);
   const [chatInput, setChatInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Get all chats — transformResponse in chatApi normalizes to a flat array
   const { data: rawChats = [], isLoading: isLoadingChats } = useGetChatsQuery();
@@ -71,6 +75,17 @@ export function Messages() {
     }
     return combined;
   }, [rawChats, isNewChat, newAgentId, newAgentName, newAgentAvatar]);
+
+  const filteredChats = React.useMemo(() => {
+    if (!searchQuery.trim()) return optimisticChats;
+    const q = searchQuery.toLowerCase().trim();
+    return optimisticChats.filter(chat => {
+      const agentName = `${chat.agent?.firstName || ''} ${chat.agent?.lastName || ''}`.toLowerCase();
+      const companyName = (chat.agent?.companyName || '').toLowerCase();
+      const lastMsgContent = (chat.lastMessage?.content || '').toLowerCase();
+      return agentName.includes(q) || companyName.includes(q) || lastMsgContent.includes(q);
+    });
+  }, [optimisticChats, searchQuery]);
 
   // Handle auto-selecting the active chat for new chat flows (side effect)
   useEffect(() => {
@@ -197,6 +212,24 @@ export function Messages() {
     setChatInput('');
   };
 
+  const [deleteChatApi] = useDeleteChatMutation();
+
+  const handleDeleteChat = async () => {
+    if (!activeChatId) return;
+    if (activeChatId.startsWith('temp-')) {
+      setActiveChatId(null);
+      showToast('Chat deleted');
+      return;
+    }
+    try {
+      await deleteChatApi(activeChatId).unwrap();
+      showToast('Chat deleted');
+      setActiveChatId(null);
+    } catch {
+      showToast('Failed to delete chat');
+    }
+  };
+
   const handleDeleteMessage = (messageId) => {
     if (!activeChatId) return;
     socketDeleteMessage({ chatId: activeChatId, messageId });
@@ -226,6 +259,8 @@ export function Messages() {
               <Icon name="search" size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search messages..."
                 className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cx-teal/20 transition-all"
               />
@@ -245,17 +280,21 @@ export function Messages() {
                   </div>
                 ))}
               </div>
-            ) : optimisticChats.length === 0 ? (
+            ) : filteredChats.length === 0 ? (
               <div className="p-8 text-center flex flex-col items-center justify-center h-full">
                 <div className="w-16 h-16 rounded-full bg-cx-teal/10 flex items-center justify-center mb-4">
                   <Icon name="chat" size={28} className="text-cx-teal" />
                 </div>
-                <h3 className="text-slate-900 font-bold mb-1">No messages yet</h3>
-                <p className="text-slate-500 text-sm">When you contact an agent, your chats will appear here.</p>
+                <h3 className="text-slate-900 font-bold mb-1">
+                  {searchQuery ? 'No matching messages' : 'No messages yet'}
+                </h3>
+                <p className="text-slate-500 text-sm">
+                  {searchQuery ? 'Try a different search term.' : 'When you contact an agent, your chats will appear here.'}
+                </p>
               </div>
             ) : (
               <div className="flex flex-col">
-                {optimisticChats.map(chat => {
+                {filteredChats.map(chat => {
                   const chatId = chat.id || chat._id;
                   const agentName = `${chat.agent?.firstName || 'Agent'} ${chat.agent?.lastName || ''}`.trim();
                   const avatarUrl = chat.agent?.profileImage?.url;
@@ -393,14 +432,14 @@ export function Messages() {
                           <Icon name="person" size={18} /> View profile
                         </button>
                         <button 
-                          onClick={() => { setHeaderMenuOpen(false); showToast('User reported'); }}
+                          onClick={() => { setHeaderMenuOpen(false); setReportModalOpen(true); }}
                           className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors cursor-pointer border-none bg-transparent"
                         >
                           <Icon name="flag" size={18} /> Report user
                         </button>
                         <div className="h-px bg-slate-100 my-1"></div>
                         <button 
-                          onClick={() => { setHeaderMenuOpen(false); showToast('Chat deleted'); setActiveChatId(null); }}
+                          onClick={() => { setHeaderMenuOpen(false); handleDeleteChat(); }}
                           className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors cursor-pointer border-none bg-transparent"
                         >
                           <Icon name="delete" size={18} /> Delete chat
@@ -521,21 +560,18 @@ export function Messages() {
                 )}
               </div>
 
-              {/* Message Input */}
-              <div className="flex-none p-4 bg-white border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
+              {/* Redesigned Floating Pill Input Bar */}
+              <div className="flex-none p-3.5 md:p-4 bg-white/95 backdrop-blur-md border-t border-slate-100/80 shadow-[0_-4px_24px_rgba(0,0,0,0.03)]">
                 <form 
                   onSubmit={handleSend}
-                  className="flex items-end gap-2 bg-slate-50 border border-slate-200/60 p-1.5 rounded-3xl focus-within:border-cx-teal/40 focus-within:ring-4 focus-within:ring-cx-teal/10 transition-all max-w-4xl mx-auto"
+                  className="flex items-center gap-3 bg-slate-100/90 focus-within:bg-white border border-slate-200/80 p-2 pl-5 rounded-full focus-within:border-cx-teal focus-within:ring-4 focus-within:ring-cx-teal/10 shadow-sm transition-all max-w-4xl mx-auto"
                 >
-                  <button type="button" className="p-2.5 text-slate-400 hover:text-cx-teal transition-colors rounded-full flex-none cursor-pointer border-none bg-transparent">
-                    <Icon name="add_circle" size={24} />
-                  </button>
-                  <textarea 
+                  <input 
+                    type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 max-h-32 bg-transparent border-none py-3 px-2 text-[15px] font-medium text-slate-800 placeholder-slate-400 resize-none outline-none custom-scrollbar"
-                    rows="1"
+                    placeholder="Type your message here..."
+                    className="flex-1 bg-transparent border-none text-[15px] font-medium text-slate-800 placeholder-slate-400 outline-none"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -546,9 +582,9 @@ export function Messages() {
                   <button 
                     type="submit" 
                     disabled={!chatInput.trim()}
-                    className="p-2.5 bg-cx-teal text-white rounded-full flex-none cursor-pointer border-none shadow-sm hover:bg-teal-600 disabled:opacity-50 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all mr-0.5 mb-0.5"
+                    className="w-11 h-11 rounded-full flex items-center justify-center flex-none cursor-pointer border-none shadow-md bg-gradient-to-r from-cx-teal to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white disabled:opacity-40 disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-95"
                   >
-                    <Icon name="send" size={20} className={chatInput.trim() ? "translate-x-0.5" : ""} />
+                    <Icon name="send" size={19} className={chatInput.trim() ? "translate-x-0.5" : ""} />
                   </button>
                 </form>
               </div>
@@ -556,6 +592,14 @@ export function Messages() {
           )}
         </div>
       </div>
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        targetType="AGENT"
+        targetId={activeChat?.agent?.id || activeChat?.agent?._id}
+        targetName={`${activeChat?.agent?.firstName || 'Agent'} ${activeChat?.agent?.lastName || ''}`.trim()}
+      />
     </div>
   );
 }

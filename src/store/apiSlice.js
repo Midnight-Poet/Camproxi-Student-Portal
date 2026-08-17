@@ -9,3 +9,4 @@ export * from './socialApi';
 export * from './chatApi';
 export * from './notificationsApi';
 export * from './schoolApi';
+export * from './reportsApi';

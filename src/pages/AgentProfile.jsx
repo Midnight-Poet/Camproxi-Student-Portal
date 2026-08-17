@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   useGetAgentByIdQuery,
@@ -11,10 +11,12 @@ import { Icon } from '../components/Icon';
 import { ListingCard } from '../components/ListingCard';
 import { normalizeItem } from '../utils/normalizeItem';
 import { AvatarCircle } from '../components/ui/AvatarCircle';
+import { ReportModal } from '../components/ReportModal';
 
 export function AgentProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
 
   const { data: agentRes, isLoading: isLoadingAgent } = useGetAgentByIdQuery(id, { skip: !id });
   const agent = agentRes?.data || agentRes;
@@ -125,6 +127,15 @@ export function AgentProfile() {
             </div>
           </div>
 
+          <div className="flex-none">
+            <button
+              onClick={() => setReportModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-slate-200 hover:border-red-200 hover:bg-red-50 text-slate-600 hover:text-red-600 text-sm font-bold transition-all cursor-pointer"
+            >
+              <Icon name="flag" size={18} />
+              <span>Report Agent</span>
+            </button>
+          </div>
         </div>
 
         {/* Bio */}
@@ -162,6 +173,14 @@ export function AgentProfile() {
           )}
         </div>
       </div>
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        targetType="AGENT"
+        targetId={id}
+        targetName={agentName}
+      />
     </div>
   );
 }

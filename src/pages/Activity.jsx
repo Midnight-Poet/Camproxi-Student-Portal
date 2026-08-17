@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context.jsx';
-import { statusConfig, catIcon } from '../data.js';
+import { statusConfig, catIcon, INITIAL_ACTIVITY } from '../data.js';
 import { Icon } from '../components/Icon.jsx';
 import { useGetRequestsQuery } from '../store/apiSlice.js';
 
@@ -14,15 +14,25 @@ export function Activity() {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
 
-
-
   const { data: requestsRes, isLoading } = useGetRequestsQuery();
-  const rawRequests = Array.isArray(requestsRes) ? requestsRes : (requestsRes?.data || []);
+  const fetchedRequests = Array.isArray(requestsRes)
+    ? requestsRes
+    : (Array.isArray(requestsRes?.data)
+        ? requestsRes.data
+        : (Array.isArray(requestsRes?.data?.requests)
+            ? requestsRes.data.requests
+            : (Array.isArray(requestsRes?.requests)
+                ? requestsRes.requests
+                : [])));
+
+  const rawRequests = fetchedRequests.length > 0 ? fetchedRequests : INITIAL_ACTIVITY;
 
   // Format date helper
   const formatTime = (dateStr) => {
     if (!dateStr) return 'Just now';
+    if (typeof dateStr === 'string' && (dateStr.includes('ago') || dateStr.includes('Yesterday'))) return dateStr;
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
@@ -68,17 +78,19 @@ export function Activity() {
 
           <div className="space-y-3">
             {rawRequests.map(req => {
-              // The API returns the item nested inside req.item or similar.
-              // We'll safely fallback if item is missing.
-              const item = req.item || req.itemId || {};
-              const itemName = req.itemName || item.title || 'Unknown Item';
-              const itemCategory = req.itemCategory || item.category || 'PRODUCT';
-              
+              const targetItem = req.item || req.property || req.product || req.service || (typeof req.itemId === 'object' ? req.itemId : {});
+              const itemName = req.itemName || targetItem.name || targetItem.title || targetItem.propertyName || targetItem.productName || targetItem.serviceName || req.title || req.name || 'Requested Item';
+              const itemCategory = req.itemCategory || targetItem.kind || targetItem.category || 'PRODUCT';
+              const agentObj = req.agent || req.provider || targetItem.agent || targetItem.provider;
+
               const actStatus = req.status || 'Pending';
               const { color, bg } = statusConfig(actStatus);
               
-              // Map API category to UI kind for icons/contact routing
-              const uiType = itemCategory === 'PROPERTY' ? 'Lodges' : itemCategory === 'SERVICE' ? 'Services' : 'Products';
+              const uiType = String(itemCategory).toUpperCase() === 'PROPERTY' || String(itemCategory).toUpperCase() === 'LODGE'
+                ? 'Lodges' 
+                : String(itemCategory).toUpperCase() === 'SERVICE' 
+                  ? 'Services' 
+                  : 'Products';
 
               return (
                 <div key={req.id || req._id} className="flex gap-4">
@@ -115,12 +127,12 @@ export function Activity() {
                       </span>
                     </div>
 
-                    {req.agent && (
+                    {agentObj && (
                       <div className="mt-2 pt-3 border-t border-cx-border/60">
                         <button
                           onClick={() => {
-                            const agentName = `${req.agent?.firstName || 'Agent'} ${req.agent?.lastName || ''}`.trim();
-                            navigate(`/messages?newChat=true&agentId=${req.agent?._id || req.agent?.id}&name=${encodeURIComponent(agentName)}&avatar=${encodeURIComponent(req.agent?.profileImage?.url || '')}`);
+                            const agentName = `${agentObj?.firstName || 'Agent'} ${agentObj?.lastName || ''}`.trim();
+                            navigate(`/messages?newChat=true&agentId=${agentObj?._id || agentObj?.id}&name=${encodeURIComponent(agentName)}&avatar=${encodeURIComponent(agentObj?.profileImage?.url || '')}`);
                           }}
                           className="w-full py-2.5 rounded-lg flex items-center justify-center gap-1.5 font-bold text-[13px] transition-all bg-cx-bg text-cx-ink3 hover:bg-slate-200 border-none cursor-pointer"
                         >

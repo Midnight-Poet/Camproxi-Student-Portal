@@ -4,6 +4,7 @@ import { ALL_ITEMS } from '../data.js'; // Fallback
 import { ListingCard } from '../components/ListingCard.jsx';
 import { Icon } from '../components/Icon.jsx';
 import { normalizeItem } from '../utils/normalizeItem.js';
+import { useApp } from '../context.jsx';
 import { 
   useGetSavedItemsQuery,
   useGetProductsQuery,
@@ -13,10 +14,9 @@ import {
   useClearSavedItemsMutation,
 } from '../store/apiSlice';
 
-
-
 export function Saved() {
   const navigate = useNavigate();
+  const { showToast } = useApp();
 
   const { data: savedItemsRes, isLoading: isLoadingSaved } = useGetSavedItemsQuery();
   const rawSaved = Array.isArray(savedItemsRes) ? savedItemsRes : (savedItemsRes?.data || []);
@@ -27,6 +27,16 @@ export function Saved() {
 
   const [removeSavedItem] = useRemoveSavedItemMutation();
   const [clearSavedItems, { isLoading: isClearing }] = useClearSavedItemsMutation();
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to clear all saved items?')) return;
+    try {
+      await clearSavedItems().unwrap();
+      showToast('Wishlist cleared', { position: 'top' });
+    } catch {
+      showToast('Failed to clear wishlist', { position: 'top' });
+    }
+  };
 
   const rawProducts = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
   const rawProperties = Array.isArray(propertiesRes) ? propertiesRes : (propertiesRes?.data || []);
@@ -53,7 +63,7 @@ export function Saved() {
         <h1 className="text-2xl font-extrabold text-cx-ink">Saved</h1>
         {savedItems.length > 0 && (
           <button
-            onClick={() => clearSavedItems()}
+            onClick={handleClearAll}
             disabled={isClearing}
             className="flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-full border-none cursor-pointer transition-colors disabled:opacity-50"
           >
@@ -71,17 +81,17 @@ export function Saved() {
       </p>
 
       {isLoadingItems ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white border border-cx-border rounded-2xl p-3 animate-pulse">
-              <div className="h-32 bg-cx-bg rounded-xl mb-3"></div>
-              <div className="h-4 bg-cx-bg rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-cx-bg rounded w-1/2"></div>
+            <div key={i} className="bg-white border border-cx-border rounded-3xl p-4 animate-pulse shadow-sm h-72">
+              <div className="h-40 bg-cx-bg rounded-2xl mb-3"></div>
+              <div className="h-5 bg-cx-bg rounded w-3/4 mb-2"></div>
+              <div className="h-4 bg-cx-bg rounded w-1/2"></div>
             </div>
           ))}
         </div>
       ) : savedItems.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {savedItems.map(item => (
             <ListingCard key={item.id} item={item} variant="grid" />
           ))}

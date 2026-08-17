@@ -12,10 +12,11 @@ const LANGUAGE_OPTIONS = ['English', 'Yoruba', 'Igbo', 'Hausa'];
 
 const DESKTOP_SECTIONS = [
   { key: 'editProfile', label: 'Edit profile', icon: 'edit', color: '#14b8a6', bg: '#e2f7f3' },
-  { key: 'notifications', label: 'Notifications', icon: 'notifications', color: '#f97316', bg: '#ffedd5' },
+  { key: 'reviews', label: 'My reviews', icon: 'rate_review', color: '#f59e0b', bg: '#fef3c7' },
+  // { key: 'notifications', label: 'Notifications', icon: 'notifications', color: '#f97316', bg: '#ffedd5' },
   { key: 'privacy', label: 'Privacy & security', icon: 'lock', color: '#8b5cf6', bg: '#ede9fe' },
   { key: 'verification', label: 'Verification', icon: 'verified_user', color: '#3b82f6', bg: '#dbeafe' },
-  { key: 'help', label: 'Help & support', icon: 'help_outline', color: '#0ea5e9', bg: '#e0f2fe' },
+  { key: 'reports', label: 'My reports', icon: 'assignment_turned_in', color: '#10b981', bg: '#d1fae5' },
   { key: 'about', label: 'About', icon: 'info', color: '#64748b', bg: '#f1f5f9' },
 ];
 
@@ -29,11 +30,16 @@ import { PrivacyView } from './components/PrivacyView.jsx';
 import { VerificationView } from './components/VerificationView.jsx';
 import { HelpView } from './components/HelpView.jsx';
 import { AboutView } from './components/AboutView.jsx';
+import { ReportsView } from './components/ReportsView.jsx';
+import { MyReviewsView } from './components/MyReviewsView.jsx';
+import { ReportModal } from '../../components/ReportModal.jsx';
+
 export function Settings() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch, showToast } = useApp();
   const { settings, prefs } = state;
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
 
   const { data: userResponse, isLoading: isLoadingUser } = useGetMeQuery();
   const user = userResponse?.data || userResponse;
@@ -106,14 +112,16 @@ export function Settings() {
     switch (view) {
       case 'editProfile':
         return <EditProfileView user={user} onSave={handleSaveProfile} />;
-      case 'notifications':
-        return <NotificationsView user={user} onUpdateNotifications={handleUpdateNotifications} />;
+      case 'reviews':
+        return <MyReviewsView goBack={goBack} />;
+      // case 'notifications':
+      //   return <NotificationsView user={user} onUpdateNotifications={handleUpdateNotifications} />;
       case 'privacy':
         return <PrivacyView />;
       case 'verification':
         return <VerificationView user={user} school={school} />;
-      case 'help':
-        return <HelpView />;
+      case 'reports':
+        return <ReportsView goBack={goBack} onOpenReportModal={() => setReportModalOpen(true)} />;
       case 'about':
         return <AboutView />;
       default:
@@ -142,18 +150,22 @@ export function Settings() {
             <SectionCard>
               <RowItem icon="edit" label="Edit profile" color="#14b8a6" bg="#e2f7f3" onClick={() => goTo('editProfile')} />
               <Divider />
+              <RowItem icon="rate_review" label="My reviews & ratings" color="#f59e0b" bg="#fef3c7" onClick={() => goTo('reviews')} />
+              <Divider />
               <RowItem icon="verified_user" label="Verification" color="#3b82f6" bg="#dbeafe"
                 sub={user?.emailVerified ? 'Email verified ✓' : 'Email not verified'}
                 onClick={() => goTo('verification')} />
             </SectionCard>
 
-            {/* Notifications */}
+            {/* Notifications (commented out for now) */}
+            {/* 
             <p className="text-xs font-bold text-cx-ink3 uppercase tracking-wide px-2 mb-2">Notifications</p>
             <SectionCard>
               <RowItem icon="notifications" label="Notification settings" color="#f97316" bg="#ffedd5"
                 sub={user?.notificationsEnabled ? 'Enabled' : 'Disabled'}
                 onClick={() => goTo('notifications')} />
-            </SectionCard>
+            </SectionCard> 
+            */}
 
             {/* Privacy */}
             <p className="text-xs font-bold text-cx-ink3 uppercase tracking-wide px-2 mb-2">Privacy & Security</p>
@@ -174,9 +186,9 @@ export function Settings() {
             {/* Support */}
             <p className="text-xs font-bold text-cx-ink3 uppercase tracking-wide px-2 mb-2">Support</p>
             <SectionCard>
-              <RowItem icon="help_outline" label="Help center" color="#0ea5e9" bg="#e0f2fe" onClick={() => goTo('help')} />
+              <RowItem icon="assignment_turned_in" label="My submitted reports" color="#10b981" bg="#d1fae5" onClick={() => goTo('reports')} />
               <Divider />
-              <RowItem icon="flag" label="Report a problem" color="#ef4444" bg="#fee2e2" onClick={() => goTo('help')} />
+              <RowItem icon="flag" label="Report a problem" color="#ef4444" bg="#fee2e2" onClick={() => setReportModalOpen(true)} />
               <Divider />
               <RowItem icon="description" label="Terms & Privacy" color="#3b82f6" bg="#dbeafe" onClick={() => goTo('about')} />
               <Divider />
@@ -260,6 +272,12 @@ export function Settings() {
           </div>
         </div>
       </div>
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        targetType="GENERAL"
+      />
     </div>
   );
 }

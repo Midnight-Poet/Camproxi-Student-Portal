@@ -2,7 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context.jsx';
 import { Icon } from '../components/Icon.jsx';
-import { useGetNotificationsQuery } from '../store/apiSlice';
+import { 
+  useGetNotificationsQuery,
+  useDeleteNotificationMutation,
+  useClearAllNotificationsMutation,
+} from '../store/apiSlice';
 import { useNotificationSocket } from '../hooks/useNotificationSocket.js';
 
 export function Notifications() {
@@ -12,6 +16,9 @@ export function Notifications() {
   const { data: notificationsRes, isLoading } = useGetNotificationsQuery();
   const notifications = Array.isArray(notificationsRes) ? notificationsRes : (notificationsRes?.data || []);
   
+  const [deleteNotificationApi] = useDeleteNotificationMutation();
+  const [clearAllNotificationsApi] = useClearAllNotificationsMutation();
+
   const { markAsRead, markAllAsRead } = useNotificationSocket();
   const isMarkingRead = false;
   const isMarkingAllRead = false;
@@ -32,6 +39,28 @@ export function Notifications() {
     } catch (err) {
       console.error('Failed to mark all as read', err);
       showToast('Could not mark all as read');
+    }
+  };
+
+  const handleDeleteNotification = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await deleteNotificationApi(id).unwrap();
+      showToast('Notification deleted', { position: 'top' });
+    } catch (err) {
+      console.error('Failed to delete notification', err);
+      showToast('Could not delete notification');
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Clear all notifications?')) return;
+    try {
+      await clearAllNotificationsApi().unwrap();
+      showToast('Notifications cleared', { position: 'top' });
+    } catch (err) {
+      console.error('Failed to clear notifications', err);
+      showToast('Could not clear notifications');
     }
   };
 
@@ -110,16 +139,27 @@ export function Notifications() {
             You have <span className="font-bold text-cx-teal">{unreadCount}</span> unread messages
           </p>
         </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={handleMarkAllAsRead}
-            disabled={isMarkingAllRead}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-cx-border rounded-xl text-sm font-bold text-cx-ink shadow-sm cursor-pointer hover:bg-cx-bg transition-colors disabled:opacity-50"
-          >
-            <Icon name="done_all" size={18} style={{ color: '#14b8a6' }} />
-            Mark all as read
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllAsRead}
+              disabled={isMarkingAllRead}
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-cx-border rounded-xl text-sm font-bold text-cx-ink shadow-sm cursor-pointer hover:bg-cx-bg transition-colors disabled:opacity-50"
+            >
+              <Icon name="done_all" size={18} style={{ color: '#14b8a6' }} />
+              Mark all as read
+            </button>
+          )}
+          {notifications.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold border border-red-100 shadow-sm cursor-pointer hover:bg-red-100 transition-colors"
+            >
+              <Icon name="delete_sweep" size={18} style={{ color: '#dc2626' }} />
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -189,7 +229,7 @@ export function Notifications() {
                   </div>
                   
                   {/* Content */}
-                  <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex-1 min-w-0 pr-16">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <h4 className={`text-base truncate ${isUnread ? 'font-extrabold text-cx-ink' : 'font-bold text-cx-ink3'}`}>
                         {notif.title || 'New Notification'}
@@ -203,17 +243,26 @@ export function Notifications() {
                     </p>
                   </div>
                   
-                  {/* Mark as read button (only visible on hover for unread) */}
-                  {isUnread && (
+                  {/* Action buttons on hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-white/90 backdrop-blur p-1 rounded-full border border-cx-border shadow-sm">
+                    {isUnread && (
+                      <button
+                        onClick={(e) => handleMarkAsRead(notif.id || notif._id, e)}
+                        disabled={isMarkingRead}
+                        className="w-8 h-8 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center cursor-pointer hover:bg-teal-100 transition-colors"
+                        title="Mark as read"
+                      >
+                        <Icon name="check" size={16} style={{ color: '#14b8a6' }} />
+                      </button>
+                    )}
                     <button
-                      onClick={(e) => handleMarkAsRead(notif.id || notif._id, e)}
-                      disabled={isMarkingRead}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-cx-border shadow flex items-center justify-center cursor-pointer hover:bg-cx-bg hover:scale-110"
-                      title="Mark as read"
+                      onClick={(e) => handleDeleteNotification(notif.id || notif._id, e)}
+                      className="w-8 h-8 rounded-full bg-red-50 border border-red-100 flex items-center justify-center cursor-pointer hover:bg-red-100 transition-colors"
+                      title="Delete notification"
                     >
-                      <Icon name="check" size={16} style={{ color: '#14b8a6' }} />
+                      <Icon name="delete" size={16} style={{ color: '#ef4444' }} />
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
             );

@@ -6,12 +6,13 @@ export function StepWelcome({ onNext, onLogin }) {
 		<div className='flex flex-col items-center text-center'>
 			{/* Logo mark */}
 			<div
-				className='w-20 h-20 rounded-[22px] flex items-center justify-center text-4xl font-extrabold text-white mb-8 shadow-lg'
+				className='w-20 h-20 rounded-[24px] flex items-center justify-center text-3xl font-extrabold text-white mb-8 shadow-xl tracking-tighter'
 				style={{
-					background: 'linear-gradient(135deg, #14b8a6, #0c8c81)',
+					background: 'linear-gradient(135deg, #14b8a6 0%, #7c6cf0 100%)',
+					boxShadow: '0 8px 24px rgba(20, 184, 166, 0.35)',
 				}}
 			>
-				C
+				CX
 			</div>
 
 			{/* Illustration placeholder — styled as a campus grid */}

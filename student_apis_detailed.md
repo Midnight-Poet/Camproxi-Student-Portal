@@ -339,3 +339,138 @@ Students can send requests for properties, products, or services. Triggers an aw
   - **Payload:** `{ "chatId": "string", "readBy": "STUDENT" | "AGENT", "readerId": "string" }`
 - `messageDeleted`: Triggered when a message is successfully deleted.
   - **Payload:** `{ "messageId": "string", "chatId": "string" }`
+
+---
+
+## 10. Reports
+**Base Route:** `/api/student/reports`  
+**Guard:** `StudentAuthGuard`  
+Students can report agents, items (properties, products, services), or submit general feedback/issues.
+
+### `POST /api/student/auth/forgot-password`
+Generates a 6-digit OTP, saves it in `resetOtp` with a 10 min expiry, and emails it via Resend.
+- **Payload:** `{ "email": "student@camproxi.com" }`
+- **Response (200 OK):** `{ "message": "Password reset email sent" }`
+
+### `POST /api/student/auth/reset-password`
+Validates the OTP and updates the password.
+- **Payload:** 
+  ```json
+  { 
+    "email": "student@camproxi.com",
+    "otp": "123456",
+    "newPassword": "newSecurePassword123"
+  }
+  ```
+- **Response (200 OK):** `{ "message": "Password reset successfully" }`
+
+### `POST /api/student/reports`
+Submit a new report.
+- **Payload:**
+```json
+{
+  "subject": "Inappropriate behavior",
+  "message": "The agent was rude and unprofessional.",
+  "targetType": "AGENT | ITEM | GENERAL",
+  "targetId": "ObjectId (Optional)",
+  "itemCategory": "PROPERTY | PRODUCT | SERVICE (Optional)"
+}
+```
+
+### `GET /api/student/reports`
+Fetch all reports submitted by the logged-in student.
+- **Expected Response:** Array of Report objects.
+```json
+[
+  {
+    "id": "ObjectId",
+    "subject": "string",
+    "message": "string",
+    "targetType": "AGENT | ITEM | GENERAL",
+    "targetId": "ObjectId | null",
+    "itemCategory": "string | null",
+    "status": "OPEN | RESOLVED",
+    "reply": "string | null",
+    "createdAt": "DateTime",
+    "updatedAt": "DateTime"
+  }
+]
+```
+
+---
+
+## 11. Advanced Global Search
+**Base Route:** `/api/student/search`  
+**Guard:** `StudentAuthGuard`  
+Allows students to search and filter products, properties, and services across their campus.
+
+### `GET /api/student/search`
+- **Query Parameters:**
+  - `q` (string, optional): Search term for matching names and descriptions.
+  - `category` (string, optional): Filter by `ALL` (default), `PRODUCT`, `PROPERTY`, or `SERVICE`.
+  - `minPrice` (number, optional): Minimum price filter.
+  - `maxPrice` (number, optional): Maximum price filter.
+  - `sortBy` (string, optional): Order results by `price_asc`, `price_desc`, or `rating_desc`.
+- **Expected Response (200 OK):** Array of items with an injected `type` field.
+```json
+[
+  {
+    "id": "ObjectId",
+    "name": "string",
+    "description": "string",
+    "price": 100,
+    "type": "PRODUCT | PROPERTY | SERVICE",
+    "averageRating": 4.5,
+    "totalReviews": 10,
+    "createdAt": "DateTime",
+    "images": []
+  }
+]
+```
+
+
+## School Information
+
+### Get User's School
+- **Endpoint:** \GET /api/student/profile/school\`n- **Auth:** Required (StudentAuthGuard)
+- **Description:** Returns the specific school (and campus details) that the currently authenticated student is registered under.
+- **Response:** The populated \School\ object.
+
+### Get All Schools (Public)
+- **Endpoint:** \GET /api/public/schools\`n- **Auth:** None (Public)
+- **Description:** Fetches a list of all registered schools on the platform for population in registration dropdowns.
+- **Response:** Array of \School\ objects (id, name, code, campus).
+
+
+
+## Notifications & Push Tokens
+
+### Get Notification Settings
+- **Endpoint:** \GET /api/student/notifications/settings\`n- **Auth:** Required (StudentAuthGuard)
+- **Description:** Loads the student's saved notification preferences (master switch, category toggles, email/push settings).
+- **Response:** \NotificationSettings\ object.
+
+### Update Notification Settings
+- **Endpoint:** \PATCH /api/student/notifications/settings\`n- **Auth:** Required (StudentAuthGuard)
+- **Description:** Saves updated settings whenever the student turns any notification toggle on or off.
+- **Payload:** \UpdateSettingsDto\ (Partial \NotificationSettings\).
+- **Response:** The updated \NotificationSettings\ object.
+
+### Save Push Token
+- **Endpoint:** \POST /api/student/notifications/push-token\`n- **Auth:** Required (StudentAuthGuard)
+- **Description:** Saves the student's browser push token so they can receive push notifications on their device.
+- **Payload:** \{ "token": "device_push_token_here" }\`n- **Response:** Success message.
+
+### Remove Push Token
+- **Endpoint:** \DELETE /api/student/notifications/push-token\`n- **Auth:** Required (StudentAuthGuard)
+- **Description:** Removes the device push token when the student logs out or revokes push permissions.
+- **Payload:** \{ "token": "device_push_token_here" }\`n- **Response:** Success message.
+
+
+## Change Password
+
+### POST /api/student/profile/change-password
+- **Auth:** Required (StudentAuthGuard)
+- **Description:** Allows an authenticated student to change their password.
+- **Body:** { "oldPassword": "...", "newPassword": "..." }
+- **Response:** Success message.
